@@ -1,12 +1,12 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../../services/coffee_api.dart';
 import '../../services/device_id_service.dart';
 import '../../services/iap_service.dart';
 import '../../services/product_catalog.dart';
-import '../../services/coffee_api.dart';
 
-import 'coffee_loading_screen.dart';
+import '../profile/profile_screen.dart';
 
 import '../../widgets/glass_card.dart';
 import '../../widgets/gradient_button.dart';
@@ -28,11 +28,10 @@ class _CoffeePaymentScreenState extends State<CoffeePaymentScreen> {
   // Release zaten store akışına girer.
   static const bool debugUseStoreIap = true;
 
-  Future<void> _goLoading() async {
-    if (!mounted) return;
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => CoffeeLoadingScreen(readingId: widget.readingId)),
-    );
+  void _fireGenerate() {
+    DeviceIdService.getOrCreate().then((deviceId) {
+      CoffeeApi.generate(readingId: widget.readingId, deviceId: deviceId).catchError((_) {});
+    });
   }
 
   bool _hasAnyPhotoFromDetail(Map<String, dynamic> d) {
@@ -82,8 +81,20 @@ class _CoffeePaymentScreenState extends State<CoffeePaymentScreen> {
         if (mounted) setState(() => _lastPaymentId = verify.paymentId);
       }
 
-      // 2) Processing/Loading ekranına geç (poll + controlled generate)
-      await _goLoading();
+      if (!mounted) return;
+      _fireGenerate();
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const ProfileScreen()),
+        (route) => false,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Ödemeniz alındı. Yorumunuz hazırlanıyor – Benim Okumalarım'dan ulaşabilirsiniz."),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

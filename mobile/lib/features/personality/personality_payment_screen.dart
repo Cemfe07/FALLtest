@@ -7,8 +7,7 @@ import '../../services/product_catalog.dart';
 import '../../widgets/mystic_scaffold.dart';
 
 import '../../services/personality_api.dart';
-import 'personality_generating_screen.dart';
-import 'personality_result_screen.dart';
+import '../profile/profile_screen.dart';
 
 class PersonalityPaymentScreen extends StatefulWidget {
   final String readingId;
@@ -42,24 +41,19 @@ class _PersonalityPaymentScreenState extends State<PersonalityPaymentScreen> {
   final String _sku = ProductCatalog.personality399;
   static const bool debugUseStoreIap = false;
 
-  Future<void> _goGenerating() async {
-    if (!mounted) return;
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => PersonalityGeneratingScreen(readingId: widget.readingId)),
-    );
+  void _fireGenerate() {
+    DeviceIdService.getOrCreate().then((deviceId) {
+      PersonalityApi.generate(readingId: widget.readingId, deviceId: deviceId).catchError((_) {});
+    });
   }
 
   Future<void> _payAndContinue() async {
     setState(() {
       _loading = true;
-      _phase = 'preparing';
+      _phase = 'paying';
     });
     try {
       final deviceId = await DeviceIdService.getOrCreate();
-
-      await PersonalityApi.generate(readingId: widget.readingId, deviceId: deviceId);
-      if (!mounted) return;
-      setState(() => _phase = 'paying');
 
       final shouldUseIap = kReleaseMode || debugUseStoreIap;
 
@@ -76,9 +70,16 @@ class _PersonalityPaymentScreenState extends State<PersonalityPaymentScreen> {
         if (mounted) setState(() => _lastPaymentId = verify.paymentId);
       }
 
+      _fireGenerate();
       if (!mounted) return;
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => PersonalityResultScreen(readingId: widget.readingId)),
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const ProfileScreen()),
+        (route) => false,
+      );
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Ödemeniz alındı. Yorumunuz hazırlanıyor – Benim Okumalarım'dan ulaşabilirsiniz."),
+        ),
       );
     } catch (e) {
       if (!mounted) return;
@@ -156,15 +157,6 @@ class _PersonalityPaymentScreenState extends State<PersonalityPaymentScreen> {
                   ],
                 ),
               ),
-              if (_phase == 'preparing')
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Text(
-                    'Yorumunuz hazırlanıyor, lütfen bekleyin...',
-                    style: TextStyle(color: Colors.white.withOpacity(0.85), fontSize: 13),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
               const Spacer(),
               SizedBox(
                 height: 56,
@@ -176,9 +168,9 @@ class _PersonalityPaymentScreenState extends State<PersonalityPaymentScreen> {
                   ),
                   onPressed: _loading ? null : _payAndContinue,
                   child: _loading
-                      ? Text(
-                          _phase == 'preparing' ? 'Yorumunuz hazırlanıyor...' : 'Ödeme işleniyor...',
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+                      ? const Text(
+                          'Ödeme işleniyor...',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
                         )
                       : const Text("Öde → Analizi Hazırla", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
                 ),

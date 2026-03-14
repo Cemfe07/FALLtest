@@ -6,12 +6,13 @@ import '../../services/iap_service.dart';
 import '../../services/product_catalog.dart';
 import '../../services/tarot_api.dart';
 
+import '../profile/profile_screen.dart';
+
 import '../../widgets/glass_card.dart';
 import '../../widgets/gradient_button.dart';
 import '../../widgets/mystic_scaffold.dart';
 
 import 'tarot_models.dart';
-import 'tarot_processing_screen.dart';
 
 class TarotPaymentScreen extends StatefulWidget {
   final String readingId;
@@ -141,8 +142,21 @@ class _TarotPaymentScreenState extends State<TarotPaymentScreen> {
       } catch (_) {}
     }
 
-    // 2) Processing ekranına geç (poll + controlled generate)
-    await _goProcessing();
+    // 2) Profile'a git, generate arka planda
+    if (!mounted) return;
+    _fireGenerate();
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const ProfileScreen()),
+      (route) => false,
+    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Ödemeniz alındı. Yorumunuz hazırlanıyor – Benim Okumalarım'dan ulaşabilirsiniz."),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   Future<void> _payAndContinue() async {
@@ -155,7 +169,17 @@ class _TarotPaymentScreenState extends State<TarotPaymentScreen> {
           await _payStoreIap();
         } else {
           // Debug'da store kullanmıyorsan processing’e geç (generate’i processing tetikler)
-          await _goProcessing();
+          if (!mounted) return;
+          _fireGenerate();
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (_) => const ProfileScreen()),
+            (route) => false,
+          );
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text("Yorumunuz hazırlanıyor – Benim Okumalarım'dan ulaşabilirsiniz."), behavior: SnackBarBehavior.floating),
+            );
+          }
         }
       }
     } catch (e) {

@@ -4,9 +4,11 @@ import 'package:flutter/material.dart';
 import '../../services/device_id_service.dart';
 import '../../services/iap_service.dart';
 import '../../services/product_catalog.dart';
+import '../../services/synastry_api.dart';
+
+import '../profile/profile_screen.dart';
 
 import '../../widgets/mystic_scaffold.dart';
-import 'synastry_generating_screen.dart';
 
 class SynastryPaymentScreen extends StatefulWidget {
   final String readingId;
@@ -34,11 +36,11 @@ class _SynastryPaymentScreenState extends State<SynastryPaymentScreen> {
   // Debug'da store test etmek istersen true
   static const bool debugUseStoreIap = false;
 
-  Future<void> _goGenerating() async {
-    if (!mounted) return;
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => SynastryGeneratingScreen(readingId: widget.readingId)),
-    );
+  void _fireGenerate() {
+    final api = SynastryApi();
+    DeviceIdService.getOrCreate().then((deviceId) {
+      api.generate(widget.readingId, deviceId: deviceId).catchError((_) {});
+    });
   }
 
   Future<void> _payAndStart() async {
@@ -68,8 +70,20 @@ class _SynastryPaymentScreenState extends State<SynastryPaymentScreen> {
         if (mounted) setState(() => _lastPaymentId = verify.paymentId);
       }
 
-      // ✅ sadece generating ekranına geç (generate/poll tek yerde)
-      await _goGenerating();
+      if (!mounted) return;
+      _fireGenerate();
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const ProfileScreen()),
+        (route) => false,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Ödemeniz alındı. Yorumunuz hazırlanıyor – Benim Okumalarım'dan ulaşabilirsiniz."),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

@@ -34,6 +34,13 @@ class _BirthChartLoadingScreenState extends State<BirthChartLoadingScreen> {
     return s.contains(' $code ') || s.contains('$code /') || s.contains(':$code');
   }
 
+  bool _isConnectionAbort(Object e) {
+    final s = e.toString().toLowerCase();
+    return s.contains('connection abort') || s.contains('connection reset') ||
+        s.contains('clientexception') || s.contains('socketexception') ||
+        s.contains('software caused') || _isHttp(e, 499);
+  }
+
   String _prettyError(Object e) {
     final s = e.toString();
 
@@ -62,11 +69,27 @@ class _BirthChartLoadingScreenState extends State<BirthChartLoadingScreen> {
     try {
       final deviceId = await DeviceIdService.getOrCreate();
 
-      // ✅ 402/409 timing için kontrollü retry
-      const maxTry = 6;
+      const maxTry = 8;
       const baseDelayMs = 900;
 
       for (var i = 1; i <= maxTry; i++) {
+        if (!mounted) return;
+
+        // 1) Önce detail ile hazır mı kontrol et (arka planda sunucu tamamlamış olabilir)
+        try {
+          final r = await BirthChartApi.detail(readingId: widget.readingId, deviceId: deviceId);
+          final status = (r.status ?? '').toLowerCase();
+          final text = (r.resultText ?? '').trim();
+          if (text.isNotEmpty && (status == 'completed' || status == 'done')) {
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(builder: (_) => BirthChartResultScreen(reading: r)),
+              (route) => false,
+            );
+            return;
+          }
+        } catch (_) {}
+
+        // 2) Generate tetikle (connection abort -> sonraki denemede detail ile alınır)
         try {
           final reading = await BirthChartApi.generate(
             readingId: widget.readingId,
@@ -83,13 +106,17 @@ class _BirthChartLoadingScreenState extends State<BirthChartLoadingScreen> {
         } catch (e) {
           if (!mounted) return;
 
-          final retryable = _isHttp(e, 402) || _isHttp(e, 409);
+          final retryable = _isHttp(e, 402) || _isHttp(e, 409) || _isConnectionAbort(e);
 
           if (retryable && i < maxTry) {
-            // snack spam olmasın
             if (i == 1 || i == 3) {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(_prettyError(e)), behavior: SnackBarBehavior.floating),
+                SnackBar(
+                  content: Text(_isConnectionAbort(e)
+                      ? "Yorum hazırlanıyor, lütfen bekleyin…"
+                      : _prettyError(e)),
+                  behavior: SnackBarBehavior.floating,
+                ),
               );
             }
             await Future.delayed(Duration(milliseconds: baseDelayMs * i));
@@ -103,6 +130,12 @@ class _BirthChartLoadingScreenState extends State<BirthChartLoadingScreen> {
           return;
         }
       }
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Yorum hazırlanamadı. Lütfen tekrar deneyin."), behavior: SnackBarBehavior.floating),
+      );
+      Navigator.of(context).pop();
     } finally {
       _running = false;
     }

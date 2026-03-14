@@ -67,6 +67,13 @@ class _TarotProcessingScreenState extends State<TarotProcessingScreen> {
     await _pollOnce();
   }
 
+  bool _isConnectionAbort(Object e) {
+    final s = e.toString().toLowerCase();
+    return s.contains('connection abort') || s.contains('connection reset') ||
+        s.contains('clientexception') || s.contains('socketexception') ||
+        s.contains('software caused') || s.contains('499');
+  }
+
   bool _asBool(dynamic v) {
     if (v is bool) return v;
     if (v is num) return v != 0;
@@ -109,15 +116,20 @@ class _TarotProcessingScreenState extends State<TarotProcessingScreen> {
       final cameBackFromProcessing =
           (_lastStatus == 'processing' && (status == 'paid' || status == 'selected'));
 
-      // 1) İlk tetikleme (normal)
+      // 1) İlk tetikleme (connection abort -> sonraki poll tekrar dener)
       if (isPaid && (!_generateTriggered || cameBackFromProcessing)) {
         if (status != 'processing') {
-          _generateTriggered = true;
-          await TarotApi.generate(readingId: widget.readingId, deviceId: deviceId);
+          try {
+            _generateTriggered = true;
+            await TarotApi.generate(readingId: widget.readingId, deviceId: deviceId);
+          } catch (e) {
+            if (_isConnectionAbort(e)) _generateTriggered = false;
+            else rethrow;
+          }
         }
       }
 
-      // 2) ✅ Sessiz otomatik retry (kullanıcıya buton göstermeden)
+      // 2) Sessiz otomatik retry
       // Uzun sürerse, belirli aralıklarla generate’i tekrar dene.
       if (isPaid &&
           _elapsed >= _silentRetryStartSec &&
@@ -125,9 +137,14 @@ class _TarotProcessingScreenState extends State<TarotProcessingScreen> {
         // processing'te takılı kalmasın diye:
         // status processing değilse generate dene
         if (status != 'processing') {
-          _lastSilentRetryAt = _elapsed;
-          _generateTriggered = true;
-          await TarotApi.generate(readingId: widget.readingId, deviceId: deviceId);
+          try {
+            _lastSilentRetryAt = _elapsed;
+            _generateTriggered = true;
+            await TarotApi.generate(readingId: widget.readingId, deviceId: deviceId);
+          } catch (e) {
+            if (_isConnectionAbort(e)) _generateTriggered = false;
+            else rethrow;
+          }
         }
       }
 
@@ -141,8 +158,7 @@ class _TarotProcessingScreenState extends State<TarotProcessingScreen> {
         });
       }
     } catch (e) {
-      // Sadece gerçekten HTTP/network hatası olursa göster
-      if (mounted) {
+      if (mounted && !_isConnectionAbort(e)) {
         setState(() {
           _error = true;
           _errorMsg = e.toString();
@@ -163,7 +179,7 @@ class _TarotProcessingScreenState extends State<TarotProcessingScreen> {
         });
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted && !_isConnectionAbort(e)) {
         setState(() {
           _error = true;
           _errorMsg = e.toString();

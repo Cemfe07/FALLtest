@@ -12,8 +12,7 @@ import '../../widgets/mystic_scaffold.dart';
 
 import 'tarot_deck.dart';
 import 'tarot_models.dart';
-import 'tarot_result_screen.dart';
-import 'tarot_processing_screen.dart';
+import '../profile/profile_screen.dart';
 
 class TarotPaymentScreen extends StatefulWidget {
   final String readingId;
@@ -92,45 +91,10 @@ class _TarotPaymentScreenState extends State<TarotPaymentScreen> {
     }).toList();
   }
 
-  Future<void> _goToResult() async {
-    if (!mounted) return;
-    final deviceId = await DeviceIdService.getOrCreate();
-    final d = await TarotApi.detail(readingId: widget.readingId, deviceId: deviceId);
-    final resultText = (d['result_text'] ?? '').toString().trim();
-    if (resultText.isNotEmpty && mounted) {
-      final rawCards = d['selected_cards'];
-      List<TarotCard> cards = widget.selectedCards;
-      if (rawCards is List) {
-        cards = TarotDeck.cardsFromApiList(rawCards);
-      }
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => TarotResultScreen(
-            question: widget.question,
-            spreadType: widget.spreadType,
-            selectedCards: cards,
-            resultText: resultText,
-          ),
-        ),
-      );
-    } else {
-      await _goProcessing();
-    }
-  }
-
-  Future<void> _goProcessing() async {
-    if (!mounted) return;
-
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (_) => TarotProcessingScreen(
-          readingId: widget.readingId,
-          question: widget.question,
-          spreadType: widget.spreadType,
-          selectedCards: widget.selectedCards,
-        ),
-      ),
-    );
+  void _fireGenerate() {
+    DeviceIdService.getOrCreate().then((deviceId) {
+      TarotApi.generate(readingId: widget.readingId, deviceId: deviceId).catchError((_) {});
+    });
   }
 
   Future<void> _payStoreIap() async {
@@ -145,10 +109,6 @@ class _TarotPaymentScreenState extends State<TarotPaymentScreen> {
       deviceId: deviceId,
     );
 
-    await TarotApi.generate(readingId: widget.readingId, deviceId: deviceId);
-    if (!mounted) return;
-    setState(() => _phase = 'paying');
-
     final verify = await IapService.instance.buyAndVerify(
       readingId: widget.readingId,
       sku: _sku,
@@ -158,14 +118,25 @@ class _TarotPaymentScreenState extends State<TarotPaymentScreen> {
       throw Exception("Ödeme doğrulanamadı: ${verify.status}");
     }
 
-    _lastPaymentId = verify.paymentId;
-    await _goToResult();
+    if (mounted) setState(() => _lastPaymentId = verify.paymentId);
+
+    _fireGenerate();
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const ProfileScreen()),
+      (route) => false,
+    );
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("Ödemeniz alındı. Yorumunuz hazırlanıyor – Benim Okumalarım'dan ulaşabilirsiniz."),
+      ),
+    );
   }
 
   Future<void> _payAndContinue() async {
     setState(() {
       _loading = true;
-      _phase = 'preparing';
+      _phase = 'paying';
     });
     try {
       if (kReleaseMode) {
@@ -175,7 +146,23 @@ class _TarotPaymentScreenState extends State<TarotPaymentScreen> {
           await _payStoreIap();
         } else {
           // Debug'da store kullanmıyorsan processing’e geç (generate’i processing tetikler)
-          await _goProcessing();
+          final devId = await DeviceIdService.getOrCreate();
+          await TarotApi.selectCards(
+            readingId: widget.readingId,
+            cards: _cardsForApi(),
+            deviceId: devId,
+          );
+          _fireGenerate();
+          if (!mounted) return;
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (_) => const ProfileScreen()),
+            (route) => false,
+          );
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Test modu – Benim Okumalarım'dan yorumu kontrol edebilirsiniz."),
+            ),
+          );
         }
       }
     } catch (e) {

@@ -7,8 +7,7 @@ import '../../services/product_catalog.dart';
 
 import '../../services/synastry_api.dart';
 import '../../widgets/mystic_scaffold.dart';
-import 'synastry_generating_screen.dart';
-import 'synastry_result_screen.dart';
+import '../profile/profile_screen.dart';
 
 class SynastryPaymentScreen extends StatefulWidget {
   final String readingId;
@@ -35,46 +34,24 @@ class _SynastryPaymentScreenState extends State<SynastryPaymentScreen> {
   // Debug'da store test etmek istersen true
   static const bool debugUseStoreIap = false;
 
-  Future<void> _goGenerating() async {
-    if (!mounted) return;
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => SynastryGeneratingScreen(readingId: widget.readingId)),
-    );
-  }
-
-  Future<void> _goToResult() async {
-    if (!mounted) return;
+  void _fireGenerate() {
     final api = SynastryApi();
-    final deviceId = await DeviceIdService.getOrCreate();
-    final status = await api.getStatus(widget.readingId, deviceId: deviceId);
-    final resultText = (status.resultText ?? '').trim();
-    if (resultText.isNotEmpty && mounted) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => SynastryResultScreen(readingId: widget.readingId, resultText: resultText),
-        ),
-      );
-    } else {
-      await _goGenerating();
-    }
+    DeviceIdService.getOrCreate().then((deviceId) {
+      api.generate(widget.readingId, deviceId: deviceId).catchError((_) {});
+    });
   }
 
   Future<void> _payAndStart() async {
     if (_loading) return;
     setState(() {
       _loading = true;
-      _phase = 'preparing';
+      _phase = 'paying';
     });
 
     try {
       // ✅ KRİTİK: device id’yi al ve sakla
       final deviceId = await DeviceIdService.getOrCreate();
       if (mounted) setState(() => _deviceId = deviceId);
-
-      final api = SynastryApi();
-      await api.generate(widget.readingId, deviceId: deviceId);
-      if (!mounted) return;
-      setState(() => _phase = 'paying');
 
       final shouldUseIap = kReleaseMode || debugUseStoreIap;
 
@@ -94,8 +71,17 @@ class _SynastryPaymentScreenState extends State<SynastryPaymentScreen> {
         if (mounted) setState(() => _lastPaymentId = verify.paymentId);
       }
 
-      // ✅ sadece generating ekranına geç (generate/poll tek yerde)
-      await _goToResult();
+      _fireGenerate();
+      if (!mounted) return;
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const ProfileScreen()),
+        (route) => false,
+      );
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Ödemeniz alındı. Yorumunuz hazırlanıyor – Benim Okumalarım'dan ulaşabilirsiniz."),
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -180,15 +166,6 @@ class _SynastryPaymentScreenState extends State<SynastryPaymentScreen> {
                   ],
                 ),
               ),
-              if (_phase == 'preparing')
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Text(
-                    'Yorumunuz hazırlanıyor, lütfen bekleyin...',
-                    style: TextStyle(color: Colors.white.withOpacity(0.85), fontSize: 13),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
               const Spacer(),
               SizedBox(
                 height: 56,
@@ -200,9 +177,9 @@ class _SynastryPaymentScreenState extends State<SynastryPaymentScreen> {
                   ),
                   onPressed: _loading ? null : _payAndStart,
                   child: _loading
-                      ? Text(
-                          _phase == 'preparing' ? 'Yorumunuz hazırlanıyor...' : 'Ödeme işleniyor...',
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+                      ? const Text(
+                          'Ödeme işleniyor...',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
                         )
                       : const Text(
                           "Öde → Analizi Başlat",

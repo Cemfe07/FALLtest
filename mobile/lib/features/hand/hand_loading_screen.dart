@@ -31,6 +31,13 @@ class _HandLoadingScreenState extends State<HandLoadingScreen> {
     return s.contains(' $code ') || s.contains('$code /') || s.contains(':$code');
   }
 
+  bool _isConnectionAbort(Object e) {
+    final s = e.toString().toLowerCase();
+    return s.contains('connection abort') || s.contains('connection reset') ||
+        s.contains('clientexception') || s.contains('socketexception') ||
+        s.contains('software caused') || _isHttp(e, 499);
+  }
+
   String _extractUserMessage(Object e) {
     var msg = e.toString();
     msg = msg.replaceFirst('Exception: ', '').trim();
@@ -75,8 +82,16 @@ class _HandLoadingScreenState extends State<HandLoadingScreen> {
             break;
           }
 
-          // 2) değilse generate tetikle
-          await HandApi.generate(deviceId: deviceId, readingId: widget.readingId);
+          // 2) generate tetikle (arka plana alınca connection abort olabilir)
+          try {
+            await HandApi.generate(deviceId: deviceId, readingId: widget.readingId);
+          } catch (e) {
+            if (_isConnectionAbort(e)) {
+              // Bağlantı koptu; sunucu tamamlamış olabilir - detail ile devam
+            } else {
+              rethrow;
+            }
+          }
 
           // 3) generate sonrası tekrar detail çek (DB güncellenmiş mi?)
           r = await HandApi.detail(deviceId: deviceId, readingId: widget.readingId);
@@ -98,10 +113,8 @@ class _HandLoadingScreenState extends State<HandLoadingScreen> {
             throw Exception(_extractUserMessage(e));
           }
 
-          // ✅ 402: verify gecikmesi olabilir -> retry var
-          // ✅ 409: lock/idempotent -> retry var
-          // ✅ 429/500: geçici -> retry var
-          final retryable = _isHttp(e, 402) || _isHttp(e, 409) || _isHttp(e, 429) || _isHttp(e, 500);
+          // ✅ 402/409/429/500 + connection abort (arka plan)
+          final retryable = _isHttp(e, 402) || _isHttp(e, 409) || _isHttp(e, 429) || _isHttp(e, 500) || _isConnectionAbort(e);
 
           if (retryable && i < maxTry) {
             if (mounted) {

@@ -1,15 +1,16 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../../services/birthchart_api.dart';
 import '../../services/device_id_service.dart';
 import '../../services/iap_service.dart';
 import '../../services/product_catalog.dart';
 
+import '../profile/profile_screen.dart';
+
 import '../../widgets/glass_card.dart';
 import '../../widgets/gradient_button.dart';
 import '../../widgets/mystic_scaffold.dart';
-
-import 'birthchart_loading_screen.dart';
 
 class BirthChartPaymentScreen extends StatefulWidget {
   final String readingId;
@@ -31,11 +32,10 @@ class _BirthChartPaymentScreenState extends State<BirthChartPaymentScreen> {
   // Release zaten store akışına girer.
   static const bool debugUseStoreIap = true;
 
-  Future<void> _goLoading() async {
-    if (!mounted) return;
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => BirthChartLoadingScreen(readingId: widget.readingId)),
-    );
+  void _fireGenerate() {
+    DeviceIdService.getOrCreate().then((deviceId) {
+      BirthChartApi.generate(readingId: widget.readingId, deviceId: deviceId).catchError((_) {});
+    });
   }
 
   Future<void> _pay() async {
@@ -58,7 +58,20 @@ class _BirthChartPaymentScreenState extends State<BirthChartPaymentScreen> {
         if (mounted) setState(() => _lastPaymentId = verify.paymentId);
       }
 
-      await _goLoading();
+      if (!mounted) return;
+      _fireGenerate();
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const ProfileScreen()),
+        (route) => false,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Ödemeniz alındı. Yorumunuz hazırlanıyor – Benim Okumalarım'dan ulaşabilirsiniz."),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

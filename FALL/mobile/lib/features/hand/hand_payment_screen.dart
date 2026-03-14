@@ -3,11 +3,12 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../services/device_id_service.dart';
+import '../../services/hand_api.dart';
 import '../../services/iap_service.dart';
 import '../../services/product_catalog.dart';
-import '../../services/profile_store.dart'; // ✅ opsiyonel kişiselleştirme
+import '../../services/profile_store.dart';
 
-import 'hand_loading_screen.dart';
+import '../profile/profile_screen.dart';
 
 import '../../widgets/glass_card.dart';
 import '../../widgets/gradient_button.dart';
@@ -34,6 +35,12 @@ class _HandPaymentScreenState extends State<HandPaymentScreen> {
   void initState() {
     super.initState();
     _loadProfileName();
+  }
+
+  void _fireGenerate() {
+    DeviceIdService.getOrCreate().then((deviceId) {
+      HandApi.generate(deviceId: deviceId, readingId: widget.readingId).catchError((_) {});
+    });
   }
 
   Future<void> _loadProfileName() async {
@@ -72,12 +79,21 @@ class _HandPaymentScreenState extends State<HandPaymentScreen> {
 
       if (!mounted) return;
 
-      // ✅ ödeme sonrası generate burada yok -> Loading ekranı yapacak
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => HandLoadingScreen(readingId: widget.readingId),
-        ),
+      // ✅ generate arka planda (fire-and-forget) – hata olsa bile devam
+      _fireGenerate();
+
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const ProfileScreen()),
+        (route) => false,
       );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Ödemeniz alındı. Yorumunuz hazırlanıyor – Benim Okumalarım'dan ulaşabilirsiniz."),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

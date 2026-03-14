@@ -60,9 +60,17 @@ class _SynastryGeneratingScreenState extends State<SynastryGeneratingScreen> {
     return s.contains(' $code ') || s.contains('$code /') || s.contains(':$code');
   }
 
+  bool _isConnectionAbort(Object e) {
+    final s = e.toString().toLowerCase();
+    return s.contains('connection abort') || s.contains('connection reset') ||
+        s.contains('clientexception') || s.contains('socketexception') ||
+        s.contains('software caused') || _isHttp(e, 499);
+  }
+
   bool _isRetryableGenerateError(Object e) {
     // “verify yansıma / işlem çakışması / anlık timing”
-    return _isHttp(e, 402) || _isHttp(e, 409) || e.toString().toLowerCase().contains('timeout');
+    return _isHttp(e, 402) || _isHttp(e, 409) ||
+        e.toString().toLowerCase().contains('timeout') || _isConnectionAbort(e);
   }
 
   Future<void> _start() async {
@@ -112,17 +120,24 @@ class _SynastryGeneratingScreenState extends State<SynastryGeneratingScreen> {
         }
 
         if (retryable && i < maxTry) {
-          // UI spam olmasın: sadece 1 ve 3. denemede minik bilgi
           if (i == 1 || i == 3) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text("Analiz başlatılıyor… (tekrar deniyorum)"),
+              SnackBar(
+                content: Text(_isConnectionAbort(e)
+                    ? "Yorum hazırlanıyor, lütfen bekleyin…"
+                    : "Analiz başlatılıyor… (tekrar deniyorum)"),
                 behavior: SnackBarBehavior.floating,
               ),
             );
           }
           await Future.delayed(Duration(milliseconds: baseDelayMs * i));
           continue;
+        }
+
+        if (_isConnectionAbort(e)) {
+          if (mounted) setState(() => _generateTriggered = false);
+          _generateInFlight = false;
+          return;
         }
 
         // retry bitti -> ekranda hata
@@ -197,7 +212,7 @@ class _SynastryGeneratingScreenState extends State<SynastryGeneratingScreen> {
       _lastStatus = st;
     } catch (e) {
       if (!mounted) return;
-
+      if (_isConnectionAbort(e)) return;
       setState(() {
         _status = 'error';
         _error = e.toString();

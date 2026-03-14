@@ -10,8 +10,7 @@ import '../../widgets/glass_card.dart';
 import '../../widgets/gradient_button.dart';
 import '../../widgets/mystic_scaffold.dart';
 
-import 'numerology_loading_screen.dart';
-import 'numerology_result_screen.dart';
+import '../profile/profile_screen.dart';
 
 class NumerologyPaymentScreen extends StatefulWidget {
   final String readingId;
@@ -39,50 +38,21 @@ class _NumerologyPaymentScreenState extends State<NumerologyPaymentScreen> {
   final String _sku = ProductCatalog.numerology299;
   static const bool debugUseStoreIap = false;
 
-  Future<void> _goLoading() async {
-    if (!mounted) return;
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (_) => NumerologyLoadingScreen(
-          readingId: widget.readingId,
-          title: "Numeroloji analizin hazırlanıyor...",
-        ),
-      ),
-    );
-  }
-
-  Future<void> _goToResult() async {
-    if (!mounted) return;
-    final deviceId = await DeviceIdService.getOrCreate();
-    final r = await NumerologyApi.get(readingId: widget.readingId, deviceId: deviceId);
-    final resultText = (r.resultText ?? '').trim();
-    if (resultText.isNotEmpty && mounted) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => NumerologyResultScreen(
-            title: (r.topic ?? 'Numeroloji').trim().isEmpty ? 'Numeroloji' : (r.topic ?? 'Numeroloji').trim(),
-            resultText: resultText,
-          ),
-        ),
-      );
-    } else {
-      await _goLoading();
-    }
+  void _fireGenerate() {
+    DeviceIdService.getOrCreate().then((deviceId) {
+      NumerologyApi.generate(readingId: widget.readingId, deviceId: deviceId).catchError((_) {});
+    });
   }
 
   Future<void> _payAndContinue() async {
     if (_loading) return;
     setState(() {
       _loading = true;
-      _phase = 'preparing';
+      _phase = 'paying';
     });
 
     try {
       final deviceId = await DeviceIdService.getOrCreate();
-
-      await NumerologyApi.generate(readingId: widget.readingId, deviceId: deviceId);
-      if (!mounted) return;
-      setState(() => _phase = 'paying');
 
       final shouldUseIap = kReleaseMode || debugUseStoreIap;
 
@@ -107,7 +77,17 @@ class _NumerologyPaymentScreenState extends State<NumerologyPaymentScreen> {
         if (mounted) setState(() => _lastPaymentId = ref);
       }
 
-      await _goToResult();
+      _fireGenerate();
+      if (!mounted) return;
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const ProfileScreen()),
+        (route) => false,
+      );
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Ödemeniz alındı. Yorumunuz hazırlanıyor – Benim Okumalarım'dan ulaşabilirsiniz."),
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -176,20 +156,9 @@ class _NumerologyPaymentScreenState extends State<NumerologyPaymentScreen> {
                 ],
               ),
             ),
-            if (_phase == 'preparing')
-              Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Text(
-                  'Yorumunuz hazırlanıyor, lütfen bekleyin...',
-                  style: TextStyle(color: Colors.white.withOpacity(0.85), fontSize: 13),
-                  textAlign: TextAlign.center,
-                ),
-              ),
             const Spacer(),
             GradientButton(
-              text: _loading
-                  ? (_phase == 'preparing' ? 'Yorumunuz hazırlanıyor...' : 'Ödeme işleniyor...')
-                  : 'Ödemeyi Başlat → Analizi Gör',
+              text: _loading ? 'Ödeme işleniyor...' : 'Ödemeyi Başlat → Analizi Gör',
               onPressed: _loading ? null : _payAndContinue,
             ),
           ],

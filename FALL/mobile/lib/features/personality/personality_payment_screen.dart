@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 
 import '../../services/device_id_service.dart';
 import '../../services/iap_service.dart';
+import '../../services/personality_api.dart';
 import '../../services/product_catalog.dart';
-import '../../widgets/mystic_scaffold.dart';
 
-import 'personality_generating_screen.dart';
+import '../profile/profile_screen.dart';
+
+import '../../widgets/mystic_scaffold.dart';
 
 class PersonalityPaymentScreen extends StatefulWidget {
   final String readingId;
@@ -41,11 +43,10 @@ class _PersonalityPaymentScreenState extends State<PersonalityPaymentScreen> {
   // Debug'da store test etmek istersen true
   static const bool debugUseStoreIap = false;
 
-  Future<void> _goGenerating() async {
-    if (!mounted) return;
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => PersonalityGeneratingScreen(readingId: widget.readingId)),
-    );
+  void _fireGenerate() {
+    DeviceIdService.getOrCreate().then((deviceId) {
+      PersonalityApi.generate(readingId: widget.readingId, deviceId: deviceId).catchError((_) {});
+    });
   }
 
   Future<void> _payAndContinue() async {
@@ -68,8 +69,20 @@ class _PersonalityPaymentScreenState extends State<PersonalityPaymentScreen> {
         if (mounted) setState(() => _lastPaymentId = verify.paymentId);
       }
 
-      // ✅ Ödeme sonrası direkt generating ekranına geç
-      await _goGenerating();
+      if (!mounted) return;
+      _fireGenerate();
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const ProfileScreen()),
+        (route) => false,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Ödemeniz alındı. Yorumunuz hazırlanıyor – Benim Okumalarım'dan ulaşabilirsiniz."),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

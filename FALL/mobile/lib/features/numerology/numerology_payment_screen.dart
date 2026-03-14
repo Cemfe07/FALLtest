@@ -6,11 +6,11 @@ import '../../services/iap_service.dart';
 import '../../services/product_catalog.dart';
 import '../../services/numerology_api.dart';
 
+import '../profile/profile_screen.dart';
+
 import '../../widgets/glass_card.dart';
 import '../../widgets/gradient_button.dart';
 import '../../widgets/mystic_scaffold.dart';
-
-import 'numerology_loading_screen.dart';
 
 class NumerologyPaymentScreen extends StatefulWidget {
   final String readingId;
@@ -39,16 +39,10 @@ class _NumerologyPaymentScreenState extends State<NumerologyPaymentScreen> {
   // ✅ Debug modda da store IAP test etmek istersen true yap
   static const bool debugUseStoreIap = false;
 
-  Future<void> _goLoading() async {
-    if (!mounted) return;
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (_) => NumerologyLoadingScreen(
-          readingId: widget.readingId,
-          title: "Numeroloji analizin hazırlanıyor...",
-        ),
-      ),
-    );
+  void _fireGenerate() {
+    DeviceIdService.getOrCreate().then((deviceId) {
+      NumerologyApi.generate(readingId: widget.readingId, deviceId: deviceId).catchError((_) {});
+    });
   }
 
   Future<void> _payAndContinue() async {
@@ -83,7 +77,20 @@ class _NumerologyPaymentScreenState extends State<NumerologyPaymentScreen> {
         if (mounted) setState(() => _lastPaymentId = ref);
       }
 
-      await _goLoading();
+      if (!mounted) return;
+      _fireGenerate();
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const ProfileScreen()),
+        (route) => false,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Ödemeniz alındı. Yorumunuz hazırlanıyor – Benim Okumalarım'dan ulaşabilirsiniz."),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

@@ -10,8 +10,7 @@ import '../../widgets/glass_card.dart';
 import '../../widgets/gradient_button.dart';
 import '../../widgets/mystic_scaffold.dart';
 
-import 'birthchart_loading_screen.dart';
-import 'birthchart_result_screen.dart';
+import '../profile/profile_screen.dart';
 
 class BirthChartPaymentScreen extends StatefulWidget {
   final String readingId;
@@ -32,36 +31,20 @@ class _BirthChartPaymentScreenState extends State<BirthChartPaymentScreen> {
 
   static const bool debugUseStoreIap = true;
 
-  Future<void> _goToResult() async {
-    if (!mounted) return;
-    final deviceId = await DeviceIdService.getOrCreate();
-    final reading = await BirthChartApi.detail(readingId: widget.readingId, deviceId: deviceId);
-    if (mounted) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => BirthChartResultScreen(reading: reading)),
-      );
-    }
-  }
-
-  Future<void> _goLoading() async {
-    if (!mounted) return;
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => BirthChartLoadingScreen(readingId: widget.readingId)),
-    );
+  void _fireGenerate() {
+    DeviceIdService.getOrCreate().then((deviceId) {
+      BirthChartApi.generate(readingId: widget.readingId, deviceId: deviceId).catchError((_) {});
+    });
   }
 
   Future<void> _pay() async {
     setState(() {
       _loading = true;
-      _phase = 'preparing';
+      _phase = 'paying';
     });
     try {
       // deviceId sadece IapService içinde de alınsa, burada çağırmak “header hazır” ve debug için iyi.
       final deviceId = await DeviceIdService.getOrCreate();
-
-      await BirthChartApi.generate(readingId: widget.readingId, deviceId: deviceId);
-      if (!mounted) return;
-      setState(() => _phase = 'paying');
 
       final shouldUseIap = kReleaseMode || debugUseStoreIap;
       if (shouldUseIap) {
@@ -77,7 +60,17 @@ class _BirthChartPaymentScreenState extends State<BirthChartPaymentScreen> {
         if (mounted) setState(() => _lastPaymentId = verify.paymentId);
       }
 
-      await _goToResult();
+      _fireGenerate();
+      if (!mounted) return;
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const ProfileScreen()),
+        (route) => false,
+      );
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Ödemeniz alındı. Yorumunuz hazırlanıyor – Benim Okumalarım'dan ulaşabilirsiniz."),
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -134,20 +127,9 @@ class _BirthChartPaymentScreenState extends State<BirthChartPaymentScreen> {
                 ],
               ),
             ),
-            if (_phase == 'preparing')
-              Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Text(
-                  'Yorumunuz hazırlanıyor, lütfen bekleyin...',
-                  style: TextStyle(color: Colors.white.withOpacity(0.85), fontSize: 13),
-                  textAlign: TextAlign.center,
-                ),
-              ),
             const SizedBox(height: 18),
             GradientButton(
-              text: _loading
-                  ? (_phase == 'preparing' ? 'Yorumunuz hazırlanıyor...' : 'Ödeme işleniyor...')
-                  : 'Ödemeyi Tamamla ✨',
+              text: _loading ? 'Ödeme işleniyor...' : 'Ödemeyi Tamamla ✨',
               onPressed: _loading ? null : _pay,
             ),
           ],

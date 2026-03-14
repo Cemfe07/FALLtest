@@ -8,8 +8,8 @@ import '../../services/product_catalog.dart';
 import '../../services/profile_store.dart'; // ✅ opsiyonel kişiselleştirme
 
 import '../../services/hand_api.dart';
-import 'hand_loading_screen.dart';
-import 'hand_result_screen.dart';
+
+import '../profile/profile_screen.dart';
 
 import '../../widgets/glass_card.dart';
 import '../../widgets/gradient_button.dart';
@@ -51,17 +51,19 @@ class _HandPaymentScreenState extends State<HandPaymentScreen> {
     }
   }
 
+  void _fireGenerate() {
+    DeviceIdService.getOrCreate().then((deviceId) {
+      HandApi.generate(deviceId: deviceId, readingId: widget.readingId).catchError((_) {});
+    });
+  }
+
   Future<void> _pay() async {
     setState(() {
       _loading = true;
-      _phase = 'preparing';
+      _phase = 'paying';
     });
     try {
-      final deviceId = await DeviceIdService.getOrCreate();
-
-      await HandApi.generate(deviceId: deviceId, readingId: widget.readingId);
-      if (!mounted) return;
-      setState(() => _phase = 'paying');
+      await DeviceIdService.getOrCreate();
 
       final shouldUseIap = kReleaseMode || debugUseStoreIap;
       if (shouldUseIap) {
@@ -78,9 +80,19 @@ class _HandPaymentScreenState extends State<HandPaymentScreen> {
       }
 
       if (!mounted) return;
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => HandResultScreen(readingId: widget.readingId)),
+      _fireGenerate();
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const ProfileScreen()),
+        (route) => false,
       );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Ödemeniz alındı. Yorumunuz hazırlanıyor – Benim Okumalarım'dan ulaşabilirsiniz."),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

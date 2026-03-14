@@ -46,6 +46,13 @@ class _CoffeeLoadingScreenState extends State<CoffeeLoadingScreen> {
     super.dispose();
   }
 
+  bool _isConnectionAbort(Object e) {
+    final s = e.toString().toLowerCase();
+    return s.contains('connection abort') || s.contains('connection reset') ||
+        s.contains('clientexception') || s.contains('socketexception') ||
+        s.contains('software caused') || s.contains('499');
+  }
+
   bool _asBool(dynamic v) {
     if (v is bool) return v;
     if (v is num) return v != 0;
@@ -100,11 +107,19 @@ class _CoffeeLoadingScreenState extends State<CoffeeLoadingScreen> {
       // ✅ processing -> paid dönüşü: generate yeniden tetiklenebilir
       final cameBackFromProcessing = (_lastStatus == 'processing' && status == 'paid');
 
-      // ✅ ödeme doğrulandıysa generate tetikle
+      // ✅ ödeme doğrulandıysa generate tetikle (connection abort -> poll devam)
       if (isPaid && (!_generateTriggered || cameBackFromProcessing)) {
         if (status != 'processing') {
-          _generateTriggered = true;
-          await CoffeeApi.generate(readingId: widget.readingId, deviceId: deviceId);
+          try {
+            _generateTriggered = true;
+            await CoffeeApi.generate(readingId: widget.readingId, deviceId: deviceId);
+          } catch (e) {
+            if (_isConnectionAbort(e)) {
+              _generateTriggered = false;
+            } else {
+              rethrow;
+            }
+          }
         }
       }
 
@@ -117,7 +132,7 @@ class _CoffeeLoadingScreenState extends State<CoffeeLoadingScreen> {
         });
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted && !_isConnectionAbort(e)) {
         setState(() {
           _error = true;
           _errorMsg = e.toString();
@@ -138,7 +153,7 @@ class _CoffeeLoadingScreenState extends State<CoffeeLoadingScreen> {
         });
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted && !_isConnectionAbort(e)) {
         setState(() {
           _error = true;
           _errorMsg = e.toString();
