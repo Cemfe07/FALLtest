@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../models/profile_models.dart';
@@ -42,6 +43,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String? _readingsError;
   /// Önceki yüklemede yorumu bekleyen okuma id'leri (yorum hazır olunca bildirim için)
   Set<String> _pendingReadingIds = {};
+  Timer? _pendingRefreshTimer;
 
   @override
   void initState() {
@@ -97,7 +99,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
     try {
       final deviceId = await DeviceIdService.getOrCreate();
-      final res = await ProfileApi.getHistory(deviceId: deviceId, limit: 5);
+      final res = await ProfileApi.getHistory(deviceId: deviceId, limit: 20);
       if (!mounted) return;
       final newItems = res.items;
       final nowPending = <String>{};
@@ -116,6 +118,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _readingsError = null;
         _pendingReadingIds = nowPending;
       });
+      _startOrStopPendingRefresh();
       if (anyJustReady) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -139,6 +142,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void _onStoreChanged() {
     if (!mounted) return;
     _applyFromStore(force: false);
+  }
+
+  void _startOrStopPendingRefresh() {
+    _pendingRefreshTimer?.cancel();
+    _pendingRefreshTimer = null;
+    if (_pendingReadingIds.isEmpty || !mounted) return;
+    _pendingRefreshTimer = Timer.periodic(const Duration(seconds: 12), (_) {
+      if (!mounted || _pendingReadingIds.isEmpty) {
+        _pendingRefreshTimer?.cancel();
+        _pendingRefreshTimer = null;
+        return;
+      }
+      _loadReadings();
+    });
   }
 
   void _openReading(ProfileReadingItem r) {
@@ -260,6 +277,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   void dispose() {
+    _pendingRefreshTimer?.cancel();
     ProfileStore.instance.removeListener(_onStoreChanged);
 
     _nameCtrl.removeListener(_markDirty);
@@ -530,7 +548,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                         )
                                       : Column(
                                           crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: _readings!.take(5).map((r) {
+                                          children: _readings!.take(20).map((r) {
                                             final dateStr = r.createdAt != null
                                                 ? "${r.createdAt!.day}.${r.createdAt!.month}.${r.createdAt!.year}"
                                                 : null;
@@ -563,11 +581,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                                               Text(dateStr, style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 12)),
                                                             if (waitingComment) ...[
                                                               const SizedBox(height: 6),
-                                                              Text(
-                                                                'Yorumunuz hazırlanıyor... Ödeme alındı, kısa süre içinde buradan ulaşabilirsiniz.',
-                                                                style: TextStyle(color: Colors.amber.shade200, fontSize: 12, height: 1.35, fontStyle: FontStyle.italic),
-                                                                maxLines: 2,
-                                                                overflow: TextOverflow.ellipsis,
+                                                              Row(
+                                                                children: [
+                                                                  SizedBox(
+                                                                    width: 14,
+                                                                    height: 14,
+                                                                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.amber.shade200),
+                                                                  ),
+                                                                  const SizedBox(width: 8),
+                                                                  Expanded(
+                                                                    child: Text(
+                                                                      'Yorumunuz hazırlanıyor... Ödeme alındı, kısa süre içinde buradan ulaşabilirsiniz.',
+                                                                      style: TextStyle(color: Colors.amber.shade200, fontSize: 12, height: 1.35, fontStyle: FontStyle.italic),
+                                                                      maxLines: 2,
+                                                                      overflow: TextOverflow.ellipsis,
+                                                                    ),
+                                                                  ),
+                                                                ],
                                                               ),
                                                             ] else if (preview != null) ...[
                                                               const SizedBox(height: 6),

@@ -163,9 +163,9 @@ def _bg_generate_personality(reading_id: str) -> None:
         except Exception as first_err:
             # başarısızsa tekrar paid’e çek ki kullanıcı yeniden denesin
             import time
-            for _ in range(2):
+            for _ in range(3):
                 try:
-                    time.sleep(2)
+                    time.sleep(5)
                     result_text = generate_personality_reading(
                         name=reading.get("name") or "",
                         birth_date=reading.get("birth_date") or "",

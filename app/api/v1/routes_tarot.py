@@ -8,6 +8,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session
 
+from app.core.device import get_device_id
 from app.db import engine, get_session
 from app.models.tarot_db import TarotReadingDB
 from app.repositories import tarot_repo
@@ -27,11 +28,11 @@ log = logging.getLogger("lunaura.tarot")
 def _run_generation_in_background(reading_id: str) -> None:
     """
     OpenAI uzun sürebilir, request'i bloklamasın diye thread'de çalışır.
-    Hata durumunda 2 kez daha dener; yorum kesin düşsün.
+    Hata durumunda 4 kez daha dener (toplam 5); yorum mutlaka düşsün.
     """
     from sqlmodel import Session as _Session
 
-    max_attempts = 3
+    max_attempts = 5
     for attempt in range(1, max_attempts + 1):
         with _Session(engine) as session:
             r = tarot_repo.get_reading(session, reading_id)
@@ -78,9 +79,8 @@ def _run_generation_in_background(reading_id: str) -> None:
                 if attempt == max_attempts:
                     tarot_repo.set_status(session, reading_id, "paid")
                     return
-                # Kısa bekleme sonrası tekrar dene
                 import time
-                time.sleep(2)
+                time.sleep(5)
 
 
 def _spawn_thread(reading_id: str) -> None:
@@ -127,11 +127,16 @@ def _wanted_count(spread_type: str) -> int:
 
 
 @router.post("/start", response_model=TarotReading)
-async def start(req: TarotStartRequest, session: Session = Depends(get_session)):
+async def start(
+    req: TarotStartRequest,
+    session: Session = Depends(get_session),
+    device_id: str = Depends(get_device_id),
+):
     _wanted_count(req.spread_type)
 
     obj = TarotReadingDB(
         id=str(uuid4()),
+        device_id=(device_id or "").strip() or None,
         topic=req.topic,
         question=req.question,
         name=req.name,
@@ -151,12 +156,21 @@ async def start(req: TarotStartRequest, session: Session = Depends(get_session))
 
 
 @router.post("/{reading_id}/select-cards", response_model=TarotReading)
-async def select_cards(reading_id: str, req: TarotSelectCardsRequest, session: Session = Depends(get_session)):
+async def select_cards(
+    reading_id: str,
+    req: TarotSelectCardsRequest,
+    session: Session = Depends(get_session),
+    device_id: str = Depends(get_device_id),
+):
     r = _get_or_404(session, reading_id)
 
     wanted = _wanted_count(r.spread_type)
     if len(req.cards) != wanted:
         raise HTTPException(status_code=400, detail=f"Bu açılım için {wanted} kart seçmelisin.")
+
+    if not (r.device_id or "").strip() and (device_id or "").strip():
+        tarot_repo.set_device_id(session, reading_id, device_id.strip())
+        r = _get_or_404(session, reading_id)
 
     r = tarot_repo.set_cards(session, reading_id, req.cards)
     return _to_schema(r)
@@ -181,8 +195,16 @@ async def mark_paid(reading_id: str, body: TarotMarkPaidRequest, session: Sessio
 
 
 @router.post("/{reading_id}/generate", response_model=TarotReading)
-async def generate(reading_id: str, session: Session = Depends(get_session)):
+async def generate(
+    reading_id: str,
+    session: Session = Depends(get_session),
+    device_id: str = Depends(get_device_id),
+):
     r = _get_or_404(session, reading_id)
+
+    if not (r.device_id or "").strip() and (device_id or "").strip():
+        tarot_repo.set_device_id(session, reading_id, device_id.strip())
+        r = _get_or_404(session, reading_id)
 
     if not r.get_cards():
         raise HTTPException(status_code=400, detail="Önce kart seçmelisin.")
@@ -201,8 +223,15 @@ async def generate(reading_id: str, session: Session = Depends(get_session)):
 
 
 @router.get("/{reading_id}", response_model=TarotReading)
-async def detail(reading_id: str, session: Session = Depends(get_session)):
+async def detail(
+    reading_id: str,
+    session: Session = Depends(get_session),
+    device_id: str = Depends(get_device_id),
+):
     r = _get_or_404(session, reading_id)
+    if not (r.device_id or "").strip() and (device_id or "").strip():
+        tarot_repo.set_device_id(session, reading_id, device_id.strip())
+        r = _get_or_404(session, reading_id)
     return _to_schema(r)
 
 

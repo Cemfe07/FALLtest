@@ -29,6 +29,14 @@ def update_reading(session: Session, obj: TarotReadingDB) -> TarotReadingDB:
     return obj
 
 
+def set_device_id(session: Session, reading_id: str, device_id: str) -> TarotReadingDB:
+    r = get_reading(session, reading_id)
+    if not r:
+        raise KeyError("not_found")
+    r.device_id = device_id
+    return update_reading(session, r)
+
+
 def set_cards(session: Session, reading_id: str, cards: List[str]) -> TarotReadingDB:
     r = get_reading(session, reading_id)
     if not r:

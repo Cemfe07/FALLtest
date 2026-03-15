@@ -7,7 +7,7 @@ import '../../services/product_catalog.dart';
 
 import '../../services/synastry_api.dart';
 import '../../widgets/mystic_scaffold.dart';
-import '../profile/profile_screen.dart';
+import 'synastry_generating_screen.dart';
 
 class SynastryPaymentScreen extends StatefulWidget {
   final String readingId;
@@ -74,13 +74,8 @@ class _SynastryPaymentScreenState extends State<SynastryPaymentScreen> {
       _fireGenerate();
       if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const ProfileScreen()),
+        MaterialPageRoute(builder: (_) => SynastryGeneratingScreen(readingId: widget.readingId)),
         (route) => false,
-      );
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Ödemeniz alındı. Yorumunuz hazırlanıyor – Benim Okumalarım'dan ulaşabilirsiniz."),
-        ),
       );
     } catch (e) {
       if (!mounted) return;

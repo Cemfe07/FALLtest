@@ -9,7 +9,7 @@ import '../../services/profile_store.dart'; // ✅ opsiyonel kişiselleştirme
 
 import '../../services/hand_api.dart';
 
-import '../profile/profile_screen.dart';
+import 'hand_loading_screen.dart';
 
 import '../../widgets/glass_card.dart';
 import '../../widgets/gradient_button.dart';
@@ -82,17 +82,9 @@ class _HandPaymentScreenState extends State<HandPaymentScreen> {
       if (!mounted) return;
       _fireGenerate();
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const ProfileScreen()),
+        MaterialPageRoute(builder: (_) => HandLoadingScreen(readingId: widget.readingId)),
         (route) => false,
       );
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Ödemeniz alındı. Yorumunuz hazırlanıyor – Benim Okumalarım'dan ulaşabilirsiniz."),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

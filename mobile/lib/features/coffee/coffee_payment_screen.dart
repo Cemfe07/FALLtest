@@ -6,7 +6,7 @@ import '../../services/iap_service.dart';
 import '../../services/product_catalog.dart';
 import '../../services/coffee_api.dart';
 
-import '../profile/profile_screen.dart';
+import 'coffee_loading_screen.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/gradient_button.dart';
 import '../../widgets/mystic_scaffold.dart';
@@ -84,13 +84,8 @@ class _CoffeePaymentScreenState extends State<CoffeePaymentScreen> {
       _fireGenerate();
       if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const ProfileScreen()),
+        MaterialPageRoute(builder: (_) => CoffeeLoadingScreen(readingId: widget.readingId)),
         (route) => false,
-      );
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Ödemeniz alındı. Yorumunuz hazırlanıyor – Benim Okumalarım'dan ulaşabilirsiniz."),
-        ),
       );
     } catch (e) {
       if (!mounted) return;

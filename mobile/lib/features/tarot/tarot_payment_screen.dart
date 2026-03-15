@@ -12,7 +12,7 @@ import '../../widgets/mystic_scaffold.dart';
 
 import 'tarot_deck.dart';
 import 'tarot_models.dart';
-import '../profile/profile_screen.dart';
+import 'tarot_processing_screen.dart';
 
 class TarotPaymentScreen extends StatefulWidget {
   final String readingId;
@@ -123,13 +123,15 @@ class _TarotPaymentScreenState extends State<TarotPaymentScreen> {
     _fireGenerate();
     if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const ProfileScreen()),
-      (route) => false,
-    );
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text("Ödemeniz alındı. Yorumunuz hazırlanıyor – Benim Okumalarım'dan ulaşabilirsiniz."),
+      MaterialPageRoute(
+        builder: (_) => TarotProcessingScreen(
+          readingId: widget.readingId,
+          question: widget.question,
+          spreadType: widget.spreadType,
+          selectedCards: widget.selectedCards,
+        ),
       ),
+      (route) => false,
     );
   }
 
@@ -155,13 +157,15 @@ class _TarotPaymentScreenState extends State<TarotPaymentScreen> {
           _fireGenerate();
           if (!mounted) return;
           Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (_) => const ProfileScreen()),
-            (route) => false,
-          );
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("Test modu – Benim Okumalarım'dan yorumu kontrol edebilirsiniz."),
+            MaterialPageRoute(
+              builder: (_) => TarotProcessingScreen(
+                readingId: widget.readingId,
+                question: widget.question,
+                spreadType: widget.spreadType,
+                selectedCards: widget.selectedCards,
+              ),
             ),
+            (route) => false,
           );
         }
       }

@@ -5,6 +5,7 @@ import '../../services/device_id_service.dart';
 import '../../services/tarot_api.dart';
 import '../../widgets/mystic_scaffold.dart';
 
+import '../profile/profile_screen.dart';
 import 'tarot_models.dart';
 import 'tarot_result_screen.dart';
 
@@ -43,9 +44,10 @@ class _TarotProcessingScreenState extends State<TarotProcessingScreen> {
 
   // ✅ Kullanıcıyı tedirgin etmeyelim:
   // Uyarı metni yok. Sadece uzun sürerse içeride sessiz retry yapacağız.
-  static const int _silentRetryStartSec = 35;  // 35sn sonra
-  static const int _silentRetryEverySec = 18;  // 18sn'de bir tekrar dene
+  static const int _silentRetryStartSec = 25;
+  static const int _silentRetryEverySec = 15;
   int _lastSilentRetryAt = 0;
+  static const int _showAlternativesAfterSec = 90;  // 90 sn sonra "Profil'e git" göster
 
   @override
   void initState() {
@@ -210,24 +212,60 @@ class _TarotProcessingScreenState extends State<TarotProcessingScreen> {
             const SizedBox(height: 16),
 
             Text(
-              _error ? 'Bağlantı sorunu oluştu' : 'AI tarot yorumunuz hazırlanıyor…',
+              _error ? 'Bağlantı sorunu oluştu' : 'Yorumunuz hazırlanıyor',
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 8),
-
+            const SizedBox(height: 12),
             Text(
               _error
                   ? (_errorMsg ?? 'Bilinmeyen hata')
-                  : 'Kişiselleştirilmiş yorumunuz hazırlanıyor. Lütfen bu ekranda kal.',
+                  : 'Adım 1: Ödeme alındı ✓\nAdım 2: AI yorumu oluşturuluyor…\nLütfen bu ekranda kalın.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white.withOpacity(0.75), height: 1.25),
+              style: TextStyle(color: Colors.white.withOpacity(0.85), height: 1.4, fontSize: 14),
             ),
+            if (!_error && _elapsed > 0)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  'Beklenen süre: ~$_elapsed sn',
+                  style: TextStyle(color: Colors.white54, fontSize: 12),
+                ),
+              ),
 
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
 
-            // ✅ “Yeniden Tetikle” BUTONUNU kullanıcıya normalde göstermiyoruz.
-            // Sadece gerçek bir hata varsa “Tekrar Dene” ve isterse tetikleme.
+            if (_elapsed >= _showAlternativesAfterSec && !_error) ...[
+              Text(
+                'Yorum biraz gecikiyorsa aşağıdan tekrar deneyin veya Profil\'e gidip bildirim bekleyin.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.amber.shade200, fontSize: 12, height: 1.3),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  TextButton.icon(
+                    onPressed: _forceRetryGenerate,
+                    icon: const Icon(Icons.refresh, size: 18),
+                    label: const Text('Tekrar dene'),
+                  ),
+                  const SizedBox(width: 12),
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.of(context).pushAndRemoveUntil(
+                        MaterialPageRoute(builder: (_) => const ProfileScreen()),
+                        (r) => false,
+                      );
+                    },
+                    icon: const Icon(Icons.person_outline, size: 18),
+                    label: const Text("Profil'e git"),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+            ],
+
             if (_error)
               SizedBox(
                 width: double.infinity,

@@ -7,7 +7,7 @@ import '../../services/product_catalog.dart';
 import '../../widgets/mystic_scaffold.dart';
 
 import '../../services/personality_api.dart';
-import '../profile/profile_screen.dart';
+import 'personality_generating_screen.dart';
 
 class PersonalityPaymentScreen extends StatefulWidget {
   final String readingId;
@@ -73,13 +73,8 @@ class _PersonalityPaymentScreenState extends State<PersonalityPaymentScreen> {
       _fireGenerate();
       if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const ProfileScreen()),
+        MaterialPageRoute(builder: (_) => PersonalityGeneratingScreen(readingId: widget.readingId)),
         (route) => false,
-      );
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Ödemeniz alındı. Yorumunuz hazırlanıyor – Benim Okumalarım'dan ulaşabilirsiniz."),
-        ),
       );
     } catch (e) {
       if (!mounted) return;

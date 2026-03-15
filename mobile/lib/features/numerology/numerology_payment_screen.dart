@@ -10,7 +10,7 @@ import '../../widgets/glass_card.dart';
 import '../../widgets/gradient_button.dart';
 import '../../widgets/mystic_scaffold.dart';
 
-import '../profile/profile_screen.dart';
+import 'numerology_loading_screen.dart';
 
 class NumerologyPaymentScreen extends StatefulWidget {
   final String readingId;
@@ -80,13 +80,13 @@ class _NumerologyPaymentScreenState extends State<NumerologyPaymentScreen> {
       _fireGenerate();
       if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const ProfileScreen()),
-        (route) => false,
-      );
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Ödemeniz alındı. Yorumunuz hazırlanıyor – Benim Okumalarım'dan ulaşabilirsiniz."),
+        MaterialPageRoute(
+          builder: (_) => NumerologyLoadingScreen(
+            readingId: widget.readingId,
+            title: widget.question.isNotEmpty ? widget.question : 'Nümeroloji',
+          ),
         ),
+        (route) => false,
       );
     } catch (e) {
       if (!mounted) return;

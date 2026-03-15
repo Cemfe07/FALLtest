@@ -10,7 +10,7 @@ import '../../widgets/glass_card.dart';
 import '../../widgets/gradient_button.dart';
 import '../../widgets/mystic_scaffold.dart';
 
-import '../profile/profile_screen.dart';
+import 'birthchart_loading_screen.dart';
 
 class BirthChartPaymentScreen extends StatefulWidget {
   final String readingId;
@@ -63,13 +63,8 @@ class _BirthChartPaymentScreenState extends State<BirthChartPaymentScreen> {
       _fireGenerate();
       if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const ProfileScreen()),
+        MaterialPageRoute(builder: (_) => BirthChartLoadingScreen(readingId: widget.readingId)),
         (route) => false,
-      );
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Ödemeniz alındı. Yorumunuz hazırlanıyor – Benim Okumalarım'dan ulaşabilirsiniz."),
-        ),
       );
     } catch (e) {
       if (!mounted) return;
