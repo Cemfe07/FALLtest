@@ -27,41 +27,60 @@ log = logging.getLogger("lunaura.tarot")
 def _run_generation_in_background(reading_id: str) -> None:
     """
     OpenAI uzun sürebilir, request'i bloklamasın diye thread'de çalışır.
+    Hata durumunda 2 kez daha dener; yorum kesin düşsün.
     """
     from sqlmodel import Session as _Session
 
-    with _Session(engine) as session:
-        r = tarot_repo.get_reading(session, reading_id)
-        if not r:
-            return
+    max_attempts = 3
+    for attempt in range(1, max_attempts + 1):
+        with _Session(engine) as session:
+            r = tarot_repo.get_reading(session, reading_id)
+            if not r:
+                return
 
-        if r.status == "completed" and (r.result_text or "").strip():
-            return
+            if r.status == "completed" and (r.result_text or "").strip():
+                return
 
-        if not r.is_paid:
-            tarot_repo.set_status(session, reading_id, "paid" if r.payment_ref else "pending_payment")
-            return
+            if not r.is_paid:
+                tarot_repo.set_status(session, reading_id, "paid" if r.payment_ref else "pending_payment")
+                return
 
-        if not r.get_cards():
-            tarot_repo.set_status(session, reading_id, "paid")
-            return
+            if not r.get_cards():
+                tarot_repo.set_status(session, reading_id, "paid")
+                return
 
-        try:
-            cards = r.get_cards()
-            text = generate_tarot_reading(
-                name=r.name,
-                age=r.age,
-                topic=r.topic,
-                question=r.question,
-                spread_type=r.spread_type,
-                selected_cards=cards,
-            )
-            tarot_repo.set_status(session, reading_id, "completed", result_text=text)
-        except Exception:
-            # Retry mümkün olsun: paid'e geri alıyoruz
-            log.exception("Tarot generation failed for reading_id=%s", reading_id)
-            tarot_repo.set_status(session, reading_id, "paid")
-            return
+            try:
+                cards = r.get_cards()
+                text = generate_tarot_reading(
+                    name=r.name,
+                    age=r.age,
+                    topic=r.topic,
+                    question=r.question,
+                    spread_type=r.spread_type,
+                    selected_cards=cards,
+                )
+                tarot_repo.set_status(session, reading_id, "completed", result_text=text)
+                did = (r.device_id or "").strip()
+                if did:
+                    try:
+                        from app.services.fcm_service import send_reading_ready_notification
+                        send_reading_ready_notification(did)
+                    except Exception:
+                        pass
+                return
+            except Exception:
+                log.exception(
+                    "Tarot generation attempt %s/%s failed for reading_id=%s",
+                    attempt,
+                    max_attempts,
+                    reading_id,
+                )
+                if attempt == max_attempts:
+                    tarot_repo.set_status(session, reading_id, "paid")
+                    return
+                # Kısa bekleme sonrası tekrar dene
+                import time
+                time.sleep(2)
 
 
 def _spawn_thread(reading_id: str) -> None:

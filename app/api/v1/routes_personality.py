@@ -153,8 +153,43 @@ def _bg_generate_personality(reading_id: str) -> None:
                 reading_id=reading_id,
                 result_text=result_text,
             )
-        except Exception:
+            did = (reading.get("device_id") or "").strip()
+            if did:
+                try:
+                    from app.services.fcm_service import send_reading_ready_notification
+                    send_reading_ready_notification(did)
+                except Exception:
+                    pass
+        except Exception as first_err:
             # başarısızsa tekrar paid’e çek ki kullanıcı yeniden denesin
+            import time
+            for _ in range(2):
+                try:
+                    time.sleep(2)
+                    result_text = generate_personality_reading(
+                        name=reading.get("name") or "",
+                        birth_date=reading.get("birth_date") or "",
+                        birth_time=reading.get("birth_time"),
+                        birth_city=reading.get("birth_city") or "",
+                        birth_country=reading.get("birth_country") or "TR",
+                        topic=reading.get("topic") or "genel",
+                        question=reading.get("question"),
+                    )
+                    personality_repo.set_result(
+                        session=session,
+                        reading_id=reading_id,
+                        result_text=result_text,
+                    )
+                    did = (reading.get("device_id") or "").strip()
+                    if did:
+                        try:
+                            from app.services.fcm_service import send_reading_ready_notification
+                            send_reading_ready_notification(did)
+                        except Exception:
+                            pass
+                    return
+                except Exception:
+                    pass
             personality_repo.set_status(session=session, reading_id=reading_id, status="paid")
 
 

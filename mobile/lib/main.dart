@@ -16,9 +16,12 @@ import 'features/iap/iap_debug_screen.dart';
 
 // ✅ IAP service
 import 'services/iap_service.dart';
+// ✅ Push: yorum hazır bildirimi
+import 'services/notification_service.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await NotificationService.init();
 
   runApp(
     DevicePreview(

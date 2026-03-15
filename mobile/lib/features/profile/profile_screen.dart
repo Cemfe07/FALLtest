@@ -40,6 +40,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   List<ProfileReadingItem>? _readings;
   bool _readingsLoading = false;
   String? _readingsError;
+  /// Önceki yüklemede yorumu bekleyen okuma id'leri (yorum hazır olunca bildirim için)
+  Set<String> _pendingReadingIds = {};
 
   @override
   void initState() {
@@ -96,12 +98,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
     try {
       final deviceId = await DeviceIdService.getOrCreate();
       final res = await ProfileApi.getHistory(deviceId: deviceId, limit: 5);
-      if (mounted) {
-        setState(() {
-          _readings = res.items;
-          _readingsLoading = false;
-          _readingsError = null;
-        });
+      if (!mounted) return;
+      final newItems = res.items;
+      final nowPending = <String>{};
+      bool anyJustReady = false;
+      for (final r in newItems) {
+        final hasResult = (r.resultText ?? '').trim().isNotEmpty;
+        if (r.isPaid && !hasResult) {
+          nowPending.add(r.id);
+        } else if (r.isPaid && hasResult && _pendingReadingIds.contains(r.id)) {
+          anyJustReady = true;
+        }
+      }
+      setState(() {
+        _readings = newItems;
+        _readingsLoading = false;
+        _readingsError = null;
+        _pendingReadingIds = nowPending;
+      });
+      if (anyJustReady) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Yorumunuz hazır! Listeden açabilirsiniz.'),
+            behavior: SnackBarBehavior.floating,
+            margin: EdgeInsets.fromLTRB(18, 0, 18, 90),
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -384,9 +406,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Expanded(
               child: _loading
                   ? const Center(child: CircularProgressIndicator())
-                  : ListView(
-                      padding: const EdgeInsets.fromLTRB(16, 10, 16, 18),
-                      children: [
+                  : RefreshIndicator(
+                      onRefresh: _loadReadings,
+                      color: const Color(0xFFF5C361),
+                      child: ListView(
+                        padding: const EdgeInsets.fromLTRB(16, 10, 16, 18),
+                        children: [
                         _card(
                           title: "Hakkında LunAura",
                           child: Column(
@@ -510,11 +535,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                                 ? "${r.createdAt!.day}.${r.createdAt!.month}.${r.createdAt!.year}"
                                                 : null;
                                             const previewLen = 120;
-                                            final preview = r.resultText != null && r.resultText!.isNotEmpty
+                                            final hasResult = r.resultText != null && r.resultText!.isNotEmpty;
+                                            final preview = hasResult
                                                 ? (r.resultText!.length <= previewLen
                                                     ? r.resultText!
                                                     : '${r.resultText!.substring(0, previewLen)}...')
                                                 : null;
+                                            final waitingComment = r.isPaid && !hasResult;
                                             return Padding(
                                               padding: const EdgeInsets.only(bottom: 10),
                                               child: InkWell(
@@ -534,7 +561,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                                             Text(r.title.isNotEmpty ? r.title : r.typeLabel, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 14)),
                                                             if (dateStr != null)
                                                               Text(dateStr, style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 12)),
-                                                            if (preview != null) ...[
+                                                            if (waitingComment) ...[
+                                                              const SizedBox(height: 6),
+                                                              Text(
+                                                                'Yorumunuz hazırlanıyor... Ödeme alındı, kısa süre içinde buradan ulaşabilirsiniz.',
+                                                                style: TextStyle(color: Colors.amber.shade200, fontSize: 12, height: 1.35, fontStyle: FontStyle.italic),
+                                                                maxLines: 2,
+                                                                overflow: TextOverflow.ellipsis,
+                                                              ),
+                                                            ] else if (preview != null) ...[
                                                               const SizedBox(height: 6),
                                                               Text(preview, style: TextStyle(color: Colors.white.withOpacity(0.85), fontSize: 12, height: 1.35), maxLines: 3, overflow: TextOverflow.ellipsis),
                                                             ],
@@ -586,6 +621,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                       ],
                     ),
+                  ),
             ),
           ],
         ),

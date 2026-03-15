@@ -16,6 +16,7 @@ import '../synastry/synastry_intro_screen.dart';
 
 import '../iap/iap_debug_screen.dart';
 import '../profile/profile_screen.dart';
+import '../../services/notification_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -37,6 +38,46 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     );
     _fadeAnimation = CurvedAnimation(parent: _fadeController, curve: Curves.easeOut);
     _fadeController.forward();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeShowNotificationPrompt());
+  }
+
+  Future<void> _maybeShowNotificationPrompt() async {
+    if (!mounted) return;
+    final shouldShow = await NotificationService.shouldShowNotificationPrompt();
+    if (!shouldShow || !mounted) return;
+    final context = this.context;
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1C2E),
+        title: Text(
+          'Bildirimler',
+          style: TextStyle(color: AppColors.textPrimary),
+        ),
+        content: Text(
+          'Bildirimleri açarak yorumunuz hazır olduğunda ve günlük hatırlatmalar alabilirsiniz. LunAura\'yı günlük kullanmanız için sizi yönlendireceğiz.',
+          style: TextStyle(color: AppColors.textSecondary, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              NotificationService.markPromptShown();
+              Navigator.of(ctx).pop();
+            },
+            child: Text('Şimdi değil', style: TextStyle(color: AppColors.textSecondary)),
+          ),
+          FilledButton(
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              await NotificationService.requestPermissionAndRegister();
+            },
+            style: FilledButton.styleFrom(backgroundColor: AppColors.gold),
+            child: const Text('Aç'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override

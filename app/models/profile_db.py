@@ -32,5 +32,7 @@ class UserProfileDB(SQLModel, table=True):
     birth_place: Optional[str] = Field(default=None, max_length=120)
     birth_time: Optional[str] = Field(default=None, max_length=5)  # HH:MM
 
+    fcm_token: Optional[str] = Field(default=None, max_length=512)
+
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)

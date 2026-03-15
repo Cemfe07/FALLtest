@@ -456,6 +456,7 @@ def ensure_profile_schema() -> None:
             "birth_date": "VARCHAR",
             "birth_place": "VARCHAR",
             "birth_time": "VARCHAR",
+            "fcm_token": "TEXT",
             "created_at": "TIMESTAMP",
             "updated_at": "TIMESTAMP",
         },

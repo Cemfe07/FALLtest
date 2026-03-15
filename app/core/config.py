@@ -57,6 +57,11 @@ class Settings(BaseSettings):
     min_photos: int = 3
     max_photos: int = 5
 
+    # FCM: Yorum hazır push bildirimi (JSON string veya boş = bildirim gönderilmez)
+    firebase_credentials_json: Optional[str] = Field(default=None, alias="FIREBASE_CREDENTIALS_JSON")
+    # Cron: günlük hatırlatma endpoint'i için gizli token (boş = cron kapalı)
+    cron_secret: Optional[str] = Field(default=None, alias="CRON_SECRET")
+
     @property
     def upload_dir_effective(self) -> Path:
         # ✅ TEK KAYNAK:

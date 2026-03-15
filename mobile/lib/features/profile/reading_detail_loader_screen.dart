@@ -99,14 +99,28 @@ class _ReadingDetailLoaderScreenState extends State<ReadingDetailLoaderScreen> {
   }
 
   Future<void> _openCoffee(String deviceId) async {
-    final d = await CoffeeApi.detailRaw(readingId: widget.readingId, deviceId: deviceId);
+    var d = await CoffeeApi.detailRaw(readingId: widget.readingId, deviceId: deviceId);
     var text = ((d['comment'] ?? d['result_text']) ?? '').toString().trim();
     if (text.isEmpty && (widget.prefetchedResultText ?? '').trim().isNotEmpty) {
       text = widget.prefetchedResultText!.trim();
     }
     if (text.isEmpty) {
-      _showError('Bu okuma henüz hazır değil.');
-      return;
+      if (!mounted) return;
+      setState(() => _error = 'Yorum hazırlanıyor...');
+      try {
+        await CoffeeApi.generate(readingId: widget.readingId, deviceId: deviceId);
+      } catch (_) {}
+      for (var i = 0; i < 6 && mounted; i++) {
+        await Future.delayed(const Duration(seconds: 5));
+        if (!mounted) return;
+        d = await CoffeeApi.detailRaw(readingId: widget.readingId, deviceId: deviceId);
+        text = ((d['comment'] ?? d['result_text']) ?? '').toString().trim();
+        if (text.isNotEmpty) break;
+      }
+      if (text.isEmpty) {
+        _showError('Yorum hazırlanamadı. Lütfen listeyi yenileyip tekrar deneyin.');
+        return;
+      }
     }
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
@@ -115,14 +129,30 @@ class _ReadingDetailLoaderScreenState extends State<ReadingDetailLoaderScreen> {
   }
 
   Future<void> _openTarot(String deviceId) async {
-    final d = await TarotApi.detail(readingId: widget.readingId, deviceId: deviceId);
+    Map<String, dynamic> d = await TarotApi.detail(readingId: widget.readingId, deviceId: deviceId);
     var resultText = (d['result_text'] ?? '').toString().trim();
     if (resultText.isEmpty && (widget.prefetchedResultText ?? '').trim().isNotEmpty) {
       resultText = widget.prefetchedResultText!.trim();
     }
     if (resultText.isEmpty) {
-      _showError('Bu okuma henüz hazır değil.');
-      return;
+      if (!mounted) return;
+      setState(() => _error = 'Yorum hazırlanıyor, tekrar deneniyor...');
+      try {
+        await TarotApi.generate(readingId: widget.readingId, deviceId: deviceId);
+      } catch (_) {}
+      const pollInterval = Duration(seconds: 5);
+      const pollMax = 18;
+      for (var i = 0; i < pollMax && mounted; i++) {
+        await Future.delayed(pollInterval);
+        if (!mounted) return;
+        d = await TarotApi.detail(readingId: widget.readingId, deviceId: deviceId);
+        resultText = (d['result_text'] ?? '').toString().trim();
+        if (resultText.isNotEmpty) break;
+      }
+      if (resultText.isEmpty) {
+        _showError('Yorum hazırlanamadı. Lütfen Profil listesinden aşağı çekerek yenileyip tekrar deneyin.');
+        return;
+      }
     }
     final question = (d['question'] ?? '').toString();
     final spreadStr = (d['spread_type'] ?? 'three').toString().toLowerCase();
@@ -150,14 +180,28 @@ class _ReadingDetailLoaderScreenState extends State<ReadingDetailLoaderScreen> {
   }
 
   Future<void> _openNumerology(String deviceId) async {
-    final r = await NumerologyApi.get(readingId: widget.readingId, deviceId: deviceId);
+    var r = await NumerologyApi.get(readingId: widget.readingId, deviceId: deviceId);
     var resultText = (r.resultText ?? '').trim();
     if (resultText.isEmpty && (widget.prefetchedResultText ?? '').trim().isNotEmpty) {
       resultText = widget.prefetchedResultText!.trim();
     }
     if (resultText.isEmpty) {
-      _showError('Bu okuma henüz hazır değil.');
-      return;
+      if (!mounted) return;
+      setState(() => _error = 'Yorum hazırlanıyor...');
+      try {
+        await NumerologyApi.generate(readingId: widget.readingId, deviceId: deviceId);
+      } catch (_) {}
+      for (var i = 0; i < 6 && mounted; i++) {
+        await Future.delayed(const Duration(seconds: 5));
+        if (!mounted) return;
+        r = await NumerologyApi.get(readingId: widget.readingId, deviceId: deviceId);
+        resultText = (r.resultText ?? '').trim();
+        if (resultText.isNotEmpty) break;
+      }
+      if (resultText.isEmpty) {
+        _showError('Yorum hazırlanamadı. Lütfen listeyi yenileyip tekrar deneyin.');
+        return;
+      }
     }
     final title = (r.topic ?? 'Numeroloji').toString().trim();
     if (!mounted) return;
@@ -172,8 +216,8 @@ class _ReadingDetailLoaderScreenState extends State<ReadingDetailLoaderScreen> {
   }
 
   Future<void> _openBirthChart(String deviceId) async {
-    final reading = await BirthChartApi.detail(readingId: widget.readingId, deviceId: deviceId);
-    final hasResult = (reading.resultText ?? '').trim().isNotEmpty;
+    var reading = await BirthChartApi.detail(readingId: widget.readingId, deviceId: deviceId);
+    var hasResult = (reading.resultText ?? '').trim().isNotEmpty;
     final hasPrefetched = (widget.prefetchedResultText ?? '').trim().isNotEmpty;
     if (!hasResult && hasPrefetched) {
       final fallback = BirthChartReading(
@@ -196,6 +240,24 @@ class _ReadingDetailLoaderScreenState extends State<ReadingDetailLoaderScreen> {
       );
       return;
     }
+    if (!hasResult) {
+      if (!mounted) return;
+      setState(() => _error = 'Yorum hazırlanıyor...');
+      try {
+        await BirthChartApi.generate(readingId: widget.readingId, deviceId: deviceId);
+      } catch (_) {}
+      for (var i = 0; i < 6 && mounted; i++) {
+        await Future.delayed(const Duration(seconds: 5));
+        if (!mounted) return;
+        reading = await BirthChartApi.detail(readingId: widget.readingId, deviceId: deviceId);
+        hasResult = (reading.resultText ?? '').trim().isNotEmpty;
+        if (hasResult) break;
+      }
+      if (!hasResult) {
+        _showError('Yorum hazırlanamadı. Lütfen listeyi yenileyip tekrar deneyin.');
+        return;
+      }
+    }
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (_) => BirthChartResultScreen(reading: reading)),
@@ -204,14 +266,28 @@ class _ReadingDetailLoaderScreenState extends State<ReadingDetailLoaderScreen> {
 
   Future<void> _openSynastry(String deviceId) async {
     final api = SynastryApi();
-    final status = await api.getStatus(widget.readingId, deviceId: deviceId);
+    var status = await api.getStatus(widget.readingId, deviceId: deviceId);
     var resultText = (status.resultText ?? '').trim();
     if (resultText.isEmpty && (widget.prefetchedResultText ?? '').trim().isNotEmpty) {
       resultText = widget.prefetchedResultText!.trim();
     }
     if (resultText.isEmpty) {
-      _showError('Bu okuma henüz hazır değil.');
-      return;
+      if (!mounted) return;
+      setState(() => _error = 'Yorum hazırlanıyor...');
+      try {
+        await api.generate(widget.readingId, deviceId: deviceId);
+      } catch (_) {}
+      for (var i = 0; i < 6 && mounted; i++) {
+        await Future.delayed(const Duration(seconds: 5));
+        if (!mounted) return;
+        status = await api.getStatus(widget.readingId, deviceId: deviceId);
+        resultText = (status.resultText ?? '').trim();
+        if (resultText.isNotEmpty) break;
+      }
+      if (resultText.isEmpty) {
+        _showError('Yorum hazırlanamadı. Lütfen listeyi yenileyip tekrar deneyin.');
+        return;
+      }
     }
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
