@@ -64,6 +64,7 @@ def _require_owner(obj: Any, device_id: str) -> Dict[str, Any]:
 def _mask_result_if_unpaid(obj: Any) -> Dict[str, Any]:
     """Ödeme yapılmamışsa result_text istemciye gönderilmez."""
     d = _as_dict(obj)
+    d["has_result"] = bool((d.get("result_text") or "").strip())
     if not d.get("is_paid"):
         d["result_text"] = None
     return d

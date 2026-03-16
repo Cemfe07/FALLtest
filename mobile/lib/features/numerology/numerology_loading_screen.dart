@@ -4,7 +4,6 @@ import 'package:lunaura/widgets/mystic_scaffold.dart';
 import 'package:lunaura/services/device_id_service.dart';
 import 'package:lunaura/services/numerology_api.dart';
 import 'package:lunaura/models/numerology_reading.dart';
-import 'package:lunaura/features/numerology/numerology_result_screen.dart';
 import 'package:lunaura/features/numerology/numerology_payment_screen.dart';
 import 'package:lunaura/features/profile/profile_screen.dart';
 
@@ -30,6 +29,12 @@ class NumerologyLoadingScreen extends StatefulWidget {
 
 class _NumerologyLoadingScreenState extends State<NumerologyLoadingScreen> {
   String _hint = "AI analiziniz hazırlanıyor…";
+
+  bool _isReady(NumerologyReading? r) {
+    if (r == null) return false;
+    final s = (r.status).toLowerCase().trim();
+    return r.hasResult || s == 'completed' || s == 'done' || s == 'ready_locked' || s == 'ready_unlocked';
+  }
 
   @override
   void initState() {
@@ -74,8 +79,7 @@ class _NumerologyLoadingScreenState extends State<NumerologyLoadingScreen> {
             readingId: widget.readingId,
             deviceId: deviceId,
           );
-          final status = (generated.status ?? '').toLowerCase();
-          if (status == 'completed' || status == 'done') {
+          if (_isReady(generated)) {
             break;
           }
         } catch (e) {
@@ -95,7 +99,12 @@ class _NumerologyLoadingScreenState extends State<NumerologyLoadingScreen> {
       }
 
       if (!mounted) return;
-      if (generated != null) {
+      if (!_isReady(generated)) {
+        try {
+          generated = await NumerologyApi.get(readingId: widget.readingId, deviceId: deviceId);
+        } catch (_) {}
+      }
+      if (_isReady(generated)) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
             builder: (_) => NumerologyPaymentScreen(

@@ -34,24 +34,76 @@ class NumerologyPaymentScreen extends StatefulWidget {
 class _NumerologyPaymentScreenState extends State<NumerologyPaymentScreen> {
   bool _loading = false;
   String? _lastPaymentId;
-  String _phase = 'idle';
+
+  NumerologyReading? _reading;
+  bool _loadingReading = true;
+  String? _loadError;
 
   final String _sku = ProductCatalog.numerology299;
   static const bool debugUseStoreIap = false;
 
+  bool _isReadyLockedOrDone(NumerologyReading? r) {
+    if (r == null) return false;
+    if (r.hasResult) return true;
+    final s = r.status.toLowerCase().trim();
+    return s == 'completed' || s == 'done' || s == 'ready_locked' || s == 'ready_unlocked';
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadReading();
+  }
+
+  Future<void> _loadReading() async {
+    setState(() {
+      _loadingReading = true;
+      _loadError = null;
+    });
+    try {
+      final deviceId = await DeviceIdService.getOrCreate();
+      final r = await NumerologyApi.get(readingId: widget.readingId, deviceId: deviceId);
+      if (!mounted) return;
+      setState(() {
+        _reading = r;
+        _loadingReading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loadError = e.toString();
+        _loadingReading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Yorum durumu alınamadı: $e')),
+      );
+    }
+  }
+
   void _fireGenerate() {
     // Yeni akışta generate zaten ödeme ÖNCESİ yapılmış halde geliyor.
     // Yine de güvenlik için, ödeme sonrası arka planda bir kez daha tetikleyebiliriz (idempotent).
-    DeviceIdService.getOrCreate().then((deviceId) {
-      NumerologyApi.generate(readingId: widget.readingId, deviceId: deviceId).catchError((_) {});
+    DeviceIdService.getOrCreate().then((deviceId) async {
+      try {
+        await NumerologyApi.generate(readingId: widget.readingId, deviceId: deviceId);
+      } catch (_) {}
     });
   }
 
   Future<void> _payAndContinue() async {
     if (_loading) return;
+
+    // Yorum hazır mı kontrol et; hazır değilse ödeme akışını başlatma.
+    final text = (_reading?.resultText ?? '').trim();
+    final readyByStatus = _isReadyLockedOrDone(_reading);
+    if (text.isEmpty && !readyByStatus) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Yorumun henüz hazır değil. Birkaç dakika içinde Profil > Benim Okumalarım’dan tekrar deneyebilirsin.')),
+      );
+      return;
+    }
     setState(() {
       _loading = true;
-      _phase = 'paying';
     });
 
     try {
@@ -85,22 +137,18 @@ class _NumerologyPaymentScreenState extends State<NumerologyPaymentScreen> {
       _fireGenerate();
       if (!mounted) return;
 
-      // Küçük bir polling ile result_text dolu halini al
+      // Ödeme sonrası yorum metnini kısa polling ile çek.
       NumerologyReading? finalReading;
       for (var i = 0; i < 6; i++) {
         try {
-          final r = await NumerologyApi.get(readingId: widget.readingId, deviceId: deviceId);
-          final text = (r.resultText ?? '').trim();
-          if (text.isNotEmpty) {
-            finalReading = r;
-            break;
-          }
+          finalReading = await NumerologyApi.get(readingId: widget.readingId, deviceId: deviceId);
+          if ((finalReading.resultText ?? '').trim().isNotEmpty) break;
         } catch (_) {}
-        await Future.delayed(const Duration(seconds: 3));
+        await Future.delayed(const Duration(seconds: 2));
       }
 
-      if (!mounted) return;
-      if (finalReading == null || (finalReading.resultText ?? '').trim().isEmpty) {
+      final unlockedText = (finalReading?.resultText ?? _reading?.resultText ?? '').trim();
+      if (unlockedText.isEmpty) {
         throw Exception("Yorum alınamadı, lütfen Profil > Benim Okumalarım'dan tekrar deneyin.");
       }
 
@@ -108,7 +156,7 @@ class _NumerologyPaymentScreenState extends State<NumerologyPaymentScreen> {
         MaterialPageRoute(
           builder: (_) => NumerologyResultScreen(
             title: widget.question.isNotEmpty ? widget.question : 'Nümeroloji',
-            resultText: finalReading!.resultText ?? '',
+            resultText: unlockedText,
           ),
         ),
         (route) => false,
@@ -119,10 +167,11 @@ class _NumerologyPaymentScreenState extends State<NumerologyPaymentScreen> {
         SnackBar(content: Text('Ödeme hatası: $e')),
       );
     } finally {
-      if (mounted) setState(() {
-        _loading = false;
-        _phase = 'idle';
-      });
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
     }
   }
 
@@ -151,6 +200,43 @@ class _NumerologyPaymentScreenState extends State<NumerologyPaymentScreen> {
                     "Soru: ${widget.question.isEmpty ? "—" : widget.question}",
                     style: TextStyle(color: Colors.white.withOpacity(0.85), height: 1.25),
                   ),
+                  const SizedBox(height: 12),
+                  if (_loadingReading)
+                    Row(
+                      children: [
+                        const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          "Yorumun hazırlanma durumu kontrol ediliyor...",
+                          style: TextStyle(color: Colors.white.withOpacity(0.80), fontSize: 12),
+                        ),
+                      ],
+                    )
+                  else if (_loadError != null)
+                    Text(
+                      "Yorum durumu alınamadı. Profil > Benim Okumalarım'dan kontrol edebilirsin.",
+                      style: TextStyle(color: Colors.orange.shade200, fontSize: 12),
+                    )
+                  else if ((_reading?.resultText ?? '').trim().isEmpty && !_isReadyLockedOrDone(_reading))
+                    Text(
+                      "Yorumun henüz tamamen hazır değil. Hazır olduğunda bu ekrandan kilidi açabilirsin.",
+                      style: TextStyle(color: Colors.white.withOpacity(0.80), fontSize: 12, height: 1.3),
+                    )
+                  else ...[
+                    Text(
+                      "Yorumun hazır 🎉",
+                      style: TextStyle(color: Colors.white.withOpacity(0.90), fontSize: 13, fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      "Aşağıdaki ödeme adımı, hazır yorumu açmak içindir. Ödeme öncesinde yorumun üretimi tamamlandı.",
+                      style: TextStyle(color: Colors.white.withOpacity(0.80), fontSize: 12, height: 1.3),
+                    ),
+                  ],
                   const SizedBox(height: 12),
                   const Text(
                     "Tutar: 299 ₺",
@@ -184,7 +270,7 @@ class _NumerologyPaymentScreenState extends State<NumerologyPaymentScreen> {
             const Spacer(),
             GradientButton(
               text: _loading ? 'Ödeme işleniyor...' : 'Ödemeyi Başlat → Analizi Gör',
-              onPressed: _loading ? null : _payAndContinue,
+              onPressed: (_loading || _loadingReading) ? null : _payAndContinue,
             ),
           ],
         ),

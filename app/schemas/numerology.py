@@ -46,6 +46,8 @@ class NumerologyReadingOut(BaseModel):
     birth_date: str
     status: str
 
+    # Ödeme öncesi maskelenen yorumun hazır olup olmadığını belirtir.
+    has_result: bool = False
     result_text: Optional[str] = None
     rating: Optional[int] = None
 

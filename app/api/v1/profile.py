@@ -49,6 +49,8 @@ class ProfileActivityItem(BaseModel):
     title: str
     status: str
     is_paid: bool
+    # Yoruma dair "hazır mı?" bilgisi. Kilitli/ödenmemiş olsa da true olabilir.
+    has_result: bool = False
     created_at: Optional[datetime] = None
     # Ödenmiş okumalarda yorum metni (profil listesinde gösterim için)
     result_text: Optional[str] = None
@@ -156,9 +158,11 @@ def _obj_id(obj: Any) -> str:
 
 def _activity_item(type_: ReadingType, obj: Any) -> ProfileActivityItem:
     is_paid = bool(getattr(obj, "is_paid", False))
+    raw_result = getattr(obj, "result_text", None)
+    has_result = isinstance(raw_result, str) and bool(raw_result.strip())
     result_text = None
     if is_paid:
-        result_text = getattr(obj, "result_text", None) or None
+        result_text = raw_result or None
         if isinstance(result_text, str) and not result_text.strip():
             result_text = None
     return ProfileActivityItem(
@@ -167,6 +171,7 @@ def _activity_item(type_: ReadingType, obj: Any) -> ProfileActivityItem:
         title=_mk_title(type_, obj),
         status=_normalize_status(getattr(obj, "status", "")),
         is_paid=is_paid,
+        has_result=has_result,
         created_at=getattr(obj, "created_at", None),
         result_text=result_text,
     )

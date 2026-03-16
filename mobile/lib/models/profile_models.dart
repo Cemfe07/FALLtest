@@ -54,6 +54,8 @@ class ProfileReadingItem {
   final String title;
   final String status;
   final bool isPaid;
+  /// Backend'den gelir: metin kilitli olsa da yorum üretimi tamamlandı mı?
+  final bool hasResult;
   final DateTime? createdAt;
   /// Ödenmiş okumalarda yorum metni (profilde gösterilir)
   final String? resultText;
@@ -64,6 +66,7 @@ class ProfileReadingItem {
     required this.title,
     required this.status,
     required this.isPaid,
+    required this.hasResult,
     this.createdAt,
     this.resultText,
   });
@@ -86,6 +89,7 @@ class ProfileReadingItem {
       title: (json['title'] ?? '').toString(),
       status: (json['status'] ?? '').toString(),
       isPaid: json['is_paid'] == true,
+      hasResult: json['has_result'] == true,
       createdAt: createdAt,
       resultText: resultText,
     );

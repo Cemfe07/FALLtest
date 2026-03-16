@@ -8,6 +8,7 @@ import '../../services/profile_store.dart';
 import '../../widgets/mystic_scaffold.dart';
 import '../coffee/coffee_result_screen.dart';
 import '../hand/hand_result_screen.dart';
+import '../numerology/numerology_payment_screen.dart';
 import '../numerology/numerology_result_screen.dart';
 import '../personality/personality_result_screen.dart';
 import '../synastry/synastry_result_screen.dart';
@@ -47,6 +48,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   /// Önceki yüklemede yorumu bekleyen okuma id'leri (yorum hazır olunca bildirim için)
   Set<String> _pendingReadingIds = {};
   Timer? _pendingRefreshTimer;
+
+  bool _isReadyLockedOrDone(ProfileReadingItem r) {
+    final s = r.status.toLowerCase().trim();
+    return s == 'completed' || s == 'done' || s == 'ready_locked' || s == 'ready_unlocked';
+  }
 
   @override
   void initState() {
@@ -113,10 +119,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final nowPending = <String>{};
       bool anyJustReady = false;
       for (final r in newItems) {
-        final hasResult = (r.resultText ?? '').trim().isNotEmpty;
-        if (r.isPaid && !hasResult) {
+        final hasResult = r.hasResult || (r.resultText ?? '').trim().isNotEmpty || _isReadyLockedOrDone(r);
+        if (!hasResult) {
           nowPending.add(r.id);
-        } else if (r.isPaid && hasResult && _pendingReadingIds.contains(r.id)) {
+        } else if (hasResult && _pendingReadingIds.contains(r.id)) {
           anyJustReady = true;
         }
       }
@@ -168,6 +174,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   void _openReading(ProfileReadingItem r) {
     if (r.id.trim().isEmpty) return;
+    final hasResult = r.hasResult || (r.resultText ?? '').trim().isNotEmpty || _isReadyLockedOrDone(r);
+
+    // Numeroloji için kilit akışı: yorum hazır + ödenmemiş ise önce ödeme ekranına git.
+    if (r.type == 'numerology' && hasResult && !r.isPaid) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => NumerologyPaymentScreen(
+            readingId: r.id,
+            name: '',
+            birthDate: '',
+            question: r.title,
+          ),
+        ),
+      );
+      return;
+    }
+    if (r.type == 'numerology' && !hasResult) {
+      _toast("Numeroloji yorumun hazırlanıyor. Hazır olduğunda buradan açabileceksin.");
+      return;
+    }
+
     // Profilde result_text varsa direkt sonuç ekranına git (detail API boş dönse bile açılsın)
     final text = (r.resultText ?? '').trim();
     if (text.isNotEmpty) {
@@ -561,13 +588,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                                 ? "${r.createdAt!.day}.${r.createdAt!.month}.${r.createdAt!.year}"
                                                 : null;
                                             const previewLen = 120;
-                                            final hasResult = r.resultText != null && r.resultText!.isNotEmpty;
+                                            final hasResult = r.hasResult || (r.resultText != null && r.resultText!.isNotEmpty) || _isReadyLockedOrDone(r);
                                             final preview = hasResult
-                                                ? (r.resultText!.length <= previewLen
-                                                    ? r.resultText!
-                                                    : '${r.resultText!.substring(0, previewLen)}...')
+                                                ? ((r.resultText ?? '').isNotEmpty
+                                                    ? ((r.resultText!.length <= previewLen)
+                                                        ? r.resultText!
+                                                        : '${r.resultText!.substring(0, previewLen)}...')
+                                                    : null)
                                                 : null;
-                                            final waitingComment = r.isPaid && !hasResult;
+                                            final waitingComment = !hasResult;
+                                            final readyLocked = hasResult && !r.isPaid;
                                             return Padding(
                                               padding: const EdgeInsets.only(bottom: 10),
                                               child: InkWell(
@@ -599,13 +629,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                                                   const SizedBox(width: 8),
                                                                   Expanded(
                                                                     child: Text(
-                                                                      'Yorumunuz hazırlanıyor... Ödeme alındı, kısa süre içinde buradan ulaşabilirsiniz.',
+                                                                      'Yorumunuz hazırlanıyor... Hazır olduğunda buradan ve bildirimle görebileceksiniz.',
                                                                       style: TextStyle(color: Colors.amber.shade200, fontSize: 12, height: 1.35, fontStyle: FontStyle.italic),
                                                                       maxLines: 2,
                                                                       overflow: TextOverflow.ellipsis,
                                                                     ),
                                                                   ),
                                                                 ],
+                                                              ),
+                                                            ] else if (readyLocked) ...[
+                                                              const SizedBox(height: 6),
+                                                              Text(
+                                                                'Yorumunuz hazır. Kilidi açıp tamamını okuyabilirsiniz.',
+                                                                style: TextStyle(color: Colors.lightGreenAccent.shade100, fontSize: 12, height: 1.35, fontStyle: FontStyle.italic),
+                                                                maxLines: 2,
+                                                                overflow: TextOverflow.ellipsis,
                                                               ),
                                                             ] else if (preview != null) ...[
                                                               const SizedBox(height: 6),

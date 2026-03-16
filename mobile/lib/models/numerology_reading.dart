@@ -5,6 +5,7 @@ class NumerologyReading {
   final String name;
   final String birthDate;
   final String status;
+  final bool hasResult;
   final String? resultText;
   final bool isPaid;
   final String? paymentRef;
@@ -16,6 +17,7 @@ class NumerologyReading {
     required this.name,
     required this.birthDate,
     required this.status,
+    required this.hasResult,
     required this.resultText,
     required this.isPaid,
     required this.paymentRef,
@@ -29,6 +31,7 @@ class NumerologyReading {
       name: (j["name"] ?? "").toString(),
       birthDate: (j["birth_date"] ?? "").toString(),
       status: (j["status"] ?? "").toString(),
+      hasResult: (j["has_result"] ?? false) == true,
       resultText: j["result_text"]?.toString(),
       isPaid: (j["is_paid"] ?? false) == true,
       paymentRef: j["payment_ref"]?.toString(),

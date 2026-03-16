@@ -7,6 +7,7 @@ import 'package:in_app_purchase/in_app_purchase.dart';
 import 'core/app_theme.dart';
 import 'features/home/home_screen.dart';
 import 'features/legal/legal_consent_gate_screen.dart';
+import 'features/profile/profile_screen.dart';
 
 // ✅ Synastry
 import 'features/synastry/synastry_intro_screen.dart';
@@ -39,10 +40,14 @@ class FallApp extends StatefulWidget {
 }
 
 class _FallAppState extends State<FallApp> with WidgetsBindingObserver {
+  final GlobalKey<NavigatorState> _navKey = GlobalKey<NavigatorState>();
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+
+    NotificationService.onOpenReadingsRequested = _openReadingsFromNotification;
 
     // ✅ IAP "hazır mı?" kontrolü (debug log). Akışı bozmaz.
     _debugCheckIapAvailability();
@@ -64,6 +69,7 @@ class _FallAppState extends State<FallApp> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    NotificationService.onOpenReadingsRequested = null;
 
     // ✅ Purchase stream subscription varsa temizle
     IapService.instance.dispose();
@@ -71,10 +77,25 @@ class _FallAppState extends State<FallApp> with WidgetsBindingObserver {
     super.dispose();
   }
 
+  void _openReadingsFromNotification() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final nav = _navKey.currentState;
+      if (nav == null) return;
+      nav.push(
+        MaterialPageRoute(
+          builder: (_) => const ProfileScreen(
+            openWithMessage: "Yorumunuz hazır olabilir. Benim Okumalarım'dan kontrol edin.",
+          ),
+        ),
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+      navigatorKey: _navKey,
 
       // ✅ DevicePreview için gerekli
       useInheritedMediaQuery: true,

@@ -27,6 +27,9 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 }
 
 class NotificationService {
+  /// Bildirime tıklanınca UI tarafında okunacak callback.
+  static VoidCallback? onOpenReadingsRequested;
+
   static final FlutterLocalNotificationsPlugin _localNotifications =
       FlutterLocalNotificationsPlugin();
 
@@ -85,6 +88,13 @@ class NotificationService {
           );
         }
       });
+      FirebaseMessaging.onMessageOpenedApp.listen((_) {
+        _notifyOpenReadingsRequested();
+      });
+      final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
+      if (initialMessage != null) {
+        _notifyOpenReadingsRequested();
+      }
       _initialized = true;
       if (kDebugMode) {
         debugPrint('[NotificationService] FCM init OK');
@@ -97,7 +107,15 @@ class NotificationService {
   }
 
   static void _onNotificationTap(NotificationResponse response) {
-    // İsteğe bağlı: bildirime tıklanınca Profile veya Okumalarım sayfasına git
+    _notifyOpenReadingsRequested();
+  }
+
+  static void _notifyOpenReadingsRequested() {
+    final cb = onOpenReadingsRequested;
+    if (cb == null) return;
+    try {
+      cb();
+    } catch (_) {}
   }
 
   static Future<void> _showLocalNotification({

@@ -5,6 +5,7 @@ import '../../core/app_colors.dart';
 import '../../widgets/feature_card.dart';
 import '../../widgets/guide_overlay.dart';
 import '../../widgets/mystic_scaffold.dart';
+import '../../models/profile_models.dart';
 
 import '../coffee/coffee_screen.dart';
 import '../hand/hand_screen.dart';
@@ -16,7 +17,9 @@ import '../synastry/synastry_intro_screen.dart';
 
 import '../iap/iap_debug_screen.dart';
 import '../profile/profile_screen.dart';
+import '../../services/device_id_service.dart';
 import '../../services/notification_service.dart';
+import '../../services/profile_api.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -25,13 +28,24 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
+class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
+
+  bool _statusLoading = false;
+  int _pendingCount = 0;
+  int _readyLockedCount = 0;
+  String? _statusError;
+
+  bool _isReadyLockedOrDone(ProfileReadingItem r) {
+    final s = r.status.toLowerCase().trim();
+    return s == 'completed' || s == 'done' || s == 'ready_locked' || s == 'ready_unlocked';
+  }
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _fadeController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 600),
@@ -39,6 +53,50 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     _fadeAnimation = CurvedAnimation(parent: _fadeController, curve: Curves.easeOut);
     _fadeController.forward();
     WidgetsBinding.instance.addPostFrameCallback((_) => _maybeShowNotificationPrompt());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadReadingStatus());
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _loadReadingStatus();
+    }
+  }
+
+  Future<void> _loadReadingStatus() async {
+    if (!mounted) return;
+    setState(() {
+      _statusLoading = true;
+      _statusError = null;
+    });
+    try {
+      final deviceId = await DeviceIdService.getOrCreate();
+      final res = await ProfileApi.getHistory(deviceId: deviceId, limit: 20);
+      int pending = 0;
+      int readyLocked = 0;
+      for (final ProfileReadingItem r in res.items) {
+        final hasResult = r.hasResult || (r.resultText ?? '').trim().isNotEmpty || _isReadyLockedOrDone(r);
+        if (!hasResult) {
+          pending++;
+          continue;
+        }
+        if (!r.isPaid) {
+          readyLocked++;
+        }
+      }
+      if (!mounted) return;
+      setState(() {
+        _pendingCount = pending;
+        _readyLockedCount = readyLocked;
+        _statusLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _statusError = e.toString();
+        _statusLoading = false;
+      });
+    }
   }
 
   Future<void> _maybeShowNotificationPrompt() async {
@@ -82,6 +140,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _fadeController.dispose();
     super.dispose();
   }
@@ -120,6 +179,87 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
   void _openProfile(BuildContext context) {
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ProfileScreen()));
+  }
+
+  Widget _readingStatusCard(BuildContext context) {
+    if (_statusLoading) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.35),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white12),
+        ),
+        child: Row(
+          children: [
+            const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Yorum durumun kontrol ediliyor...',
+                style: TextStyle(color: Colors.white.withOpacity(0.85), fontSize: 13),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_statusError != null || (_pendingCount == 0 && _readyLockedCount == 0)) {
+      return const SizedBox.shrink();
+    }
+
+    String line;
+    if (_pendingCount > 0 && _readyLockedCount > 0) {
+      line = '$_pendingCount yorum hazırlanıyor · $_readyLockedCount yorum hazır (kilitli)';
+    } else if (_pendingCount > 0) {
+      line = '$_pendingCount yorum hazırlanıyor';
+    } else {
+      line = '$_readyLockedCount yorum hazır (kilitli)';
+    }
+
+    return InkWell(
+      onTap: () => _openProfile(context),
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: const Color(0xFF2A1B38).withOpacity(0.82),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFF5C361).withOpacity(0.45)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.notifications_active_outlined, color: Color(0xFFF5C361)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Okuma Durumu',
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '$line. Detaylar için Benim Okumalarım\'a dokun.',
+                    style: TextStyle(color: Colors.white.withOpacity(0.82), fontSize: 12, height: 1.3),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: Colors.white54),
+          ],
+        ),
+      ),
+    );
   }
 
   void _openGuide(BuildContext context) {
@@ -251,6 +391,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   child: ListView(
                     children: [
+                      _readingStatusCard(context),
+                      if (!_statusLoading && _statusError == null && (_pendingCount > 0 || _readyLockedCount > 0))
+                        const SizedBox(height: 12),
                       if (!kReleaseMode) ...[
                         FeatureCard(
                           title: 'IAP Debug',
