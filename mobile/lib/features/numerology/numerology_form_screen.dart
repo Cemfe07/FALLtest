@@ -6,7 +6,7 @@ import '../../models/numerology_reading.dart';
 import '../../widgets/mystic_scaffold.dart';
 import '../../services/profile_store.dart';
 
-import 'numerology_payment_screen.dart';
+import 'numerology_loading_screen.dart';
 
 class NumerologyFormScreen extends StatefulWidget {
   const NumerologyFormScreen({super.key});
@@ -162,8 +162,9 @@ class _NumerologyFormScreenState extends State<NumerologyFormScreen> {
 
       Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (_) => NumerologyPaymentScreen(
+          builder: (_) => NumerologyLoadingScreen(
             readingId: reading.id,
+            title: question.isNotEmpty ? question : 'Nümeroloji Analizi',
             name: name,
             birthDate: birthDate,
             question: question,

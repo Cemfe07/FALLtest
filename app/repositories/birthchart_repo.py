@@ -12,6 +12,7 @@ from app.models.birthchart_db import BirthChartReadingDB
 def _dump(obj: BirthChartReadingDB) -> dict:
     return {
         "id": obj.id,
+        "device_id": obj.device_id,
         "topic": obj.topic,
         "question": obj.question,
         "name": obj.name,
@@ -85,6 +86,7 @@ class BirthChartRepo:
         *,
         session: Session,
         reading_id: str,
+        device_id: str,
         name: str,
         birth_date: str,
         birth_time: Optional[str],
@@ -95,6 +97,7 @@ class BirthChartRepo:
     ) -> dict:
         obj = BirthChartReadingDB(
             id=reading_id,
+            device_id=device_id,
             name=name,
             birth_date=birth_date,
             birth_time=birth_time,

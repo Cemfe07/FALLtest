@@ -10,11 +10,17 @@ import 'package:lunaura/features/profile/profile_screen.dart';
 class NumerologyLoadingScreen extends StatefulWidget {
   final String readingId;
   final String title;
+  final String name;
+  final String birthDate;
+  final String question;
 
   const NumerologyLoadingScreen({
     super.key,
     required this.readingId,
     required this.title,
+    required this.name,
+    required this.birthDate,
+    required this.question,
   });
 
   @override
@@ -63,21 +69,14 @@ class _NumerologyLoadingScreenState extends State<NumerologyLoadingScreen> {
         setState(() => _hint = "Yorum hazırlanıyor… (deneme $i/$maxTry)");
 
         try {
-          final r = await NumerologyApi.get(readingId: widget.readingId, deviceId: deviceId);
-          final status = (r.status ?? '').toLowerCase();
-          final text = (r.resultText ?? '').trim();
-          if (text.isNotEmpty && (status == 'completed' || status == 'done')) {
-            generated = r;
-            break;
-          }
-        } catch (_) {}
-
-        try {
           generated = await NumerologyApi.generate(
             readingId: widget.readingId,
             deviceId: deviceId,
           );
-          break;
+          final status = (generated.status ?? '').toLowerCase();
+          if (status == 'completed' || status == 'done') {
+            break;
+          }
         } catch (e) {
           if (_isConnectionAbort(e)) {
             if (i < maxTry) {
@@ -95,15 +94,17 @@ class _NumerologyLoadingScreenState extends State<NumerologyLoadingScreen> {
       }
 
       if (!mounted) return;
-      if (generated != null && (generated!.resultText ?? '').trim().isNotEmpty) {
+      if (generated != null) {
         Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => NumerologyResultScreen(
-            title: widget.title,
-            resultText: generated!.resultText ?? "",
+          MaterialPageRoute(
+            builder: (_) => NumerologyPaymentScreen(
+              readingId: widget.readingId,
+              name: widget.name,
+              birthDate: widget.birthDate,
+              question: widget.question,
+            ),
           ),
-        ),
-      );
+        );
       } else {
         throw Exception("Yorum hazırlanamadı. Lütfen tekrar deneyin.");
       }

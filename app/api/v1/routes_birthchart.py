@@ -20,11 +20,13 @@ router = APIRouter(prefix="/birthchart", tags=["birthchart"])
 def start_birthchart(
     payload: BirthChartStartRequest,
     session: Session = Depends(get_session),
+    device_id: str = Depends(get_device_id),
 ):
     reading_id = str(uuid4())
     reading = birthchart_repo.create(
         session=session,
         reading_id=reading_id,
+        device_id=device_id,
         name=payload.name,
         birth_date=payload.birth_date,
         birth_time=payload.birth_time,

@@ -39,6 +39,8 @@ class _NumerologyPaymentScreenState extends State<NumerologyPaymentScreen> {
   static const bool debugUseStoreIap = false;
 
   void _fireGenerate() {
+    // Yeni akışta generate zaten ödeme ÖNCESİ yapılmış halde geliyor.
+    // Yine de güvenlik için, ödeme sonrası arka planda bir kez daha tetikleyebiliriz (idempotent).
     DeviceIdService.getOrCreate().then((deviceId) {
       NumerologyApi.generate(readingId: widget.readingId, deviceId: deviceId).catchError((_) {});
     });
@@ -77,13 +79,35 @@ class _NumerologyPaymentScreenState extends State<NumerologyPaymentScreen> {
         if (mounted) setState(() => _lastPaymentId = ref);
       }
 
+      // Yorum zaten generate edilmiş durumda olmalı; ödeme sonrası
+      // kilit açıldıktan sonra sonucu getirip direkt sonuç ekranına gidelim.
       _fireGenerate();
       if (!mounted) return;
+
+      // Küçük bir polling ile result_text dolu halini al
+      NumerologyReading? finalReading;
+      for (var i = 0; i < 6; i++) {
+        try {
+          final r = await NumerologyApi.get(readingId: widget.readingId, deviceId: deviceId);
+          final text = (r.resultText ?? '').trim();
+          if (text.isNotEmpty) {
+            finalReading = r;
+            break;
+          }
+        } catch (_) {}
+        await Future.delayed(const Duration(seconds: 3));
+      }
+
+      if (!mounted) return;
+      if (finalReading == null || (finalReading.resultText ?? '').trim().isEmpty) {
+        throw Exception("Yorum alınamadı, lütfen Profil > Benim Okumalarım'dan tekrar deneyin.");
+      }
+
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(
-          builder: (_) => NumerologyLoadingScreen(
-            readingId: widget.readingId,
+          builder: (_) => NumerologyResultScreen(
             title: widget.question.isNotEmpty ? widget.question : 'Nümeroloji',
+            resultText: finalReading.resultText ?? '',
           ),
         ),
         (route) => false,
