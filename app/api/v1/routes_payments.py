@@ -146,6 +146,8 @@ def _check_prerequisites(*, session: Session, product: str, reading_id: str) -> 
             raise HTTPException(status_code=404, detail="Tarot reading not found for this payment")
         if not r.get_cards():
             raise HTTPException(status_code=409, detail="Cards must be selected before payment")
+        if not (r.result_text or "").strip():
+            raise HTTPException(status_code=409, detail="Tarot reading is still preparing. Please wait for it to be ready.")
         return
 
     # HAND -> foto şart
@@ -166,7 +168,25 @@ def _check_prerequisites(*, session: Session, product: str, reading_id: str) -> 
             raise HTTPException(status_code=409, detail="Upload coffee photos before payment")
         return
 
-    # NUMEROLOGY / BIRTHCHART / PERSONALITY / SYNASTRY -> precondition yok
+    # PERSONALITY -> yorum hazır olmalı
+    if product == "personality":
+        reading = personality_repo.get(session=session, reading_id=reading_id)
+        if not reading:
+            raise HTTPException(status_code=404, detail="Personality reading not found for this payment")
+        if not (reading.get("result_text") or "").strip():
+            raise HTTPException(status_code=409, detail="Personality reading is still preparing. Please wait for it to be ready.")
+        return
+
+    # SYNASTRY -> yorum hazır olmalı
+    if product == "synastry":
+        reading = synastry_repo.get(session=session, reading_id=reading_id)
+        if not reading:
+            raise HTTPException(status_code=404, detail="Synastry reading not found for this payment")
+        if not (reading.get("result_text") or "").strip():
+            raise HTTPException(status_code=409, detail="Synastry reading is still preparing. Please wait for it to be ready.")
+        return
+
+    # NUMEROLOGY / BIRTHCHART -> precondition yok
     return
 
 

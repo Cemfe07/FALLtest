@@ -1,12 +1,13 @@
 // mobile/lib/features/hand/hand_loading_screen.dart
 import 'package:flutter/material.dart';
 
+import '../../models/hand_reading.dart';
 import '../../services/device_id_service.dart';
 import '../../services/hand_api.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/mystic_scaffold.dart';
+import 'hand_payment_screen.dart';
 import '../profile/profile_screen.dart';
-import 'hand_result_screen.dart';
 
 class HandLoadingScreen extends StatefulWidget {
   final String readingId;
@@ -18,7 +19,11 @@ class HandLoadingScreen extends StatefulWidget {
 
 class _HandLoadingScreenState extends State<HandLoadingScreen> {
   String _statusText = 'El falın hazırlanıyor…';
-  int _tryNo = 0;
+
+  bool _isReady(HandReading r) {
+    final status = r.status.toLowerCase().trim();
+    return r.hasResult || status == 'completed' || status == 'done' || status == 'ready_locked' || status == 'ready_unlocked';
+  }
 
   @override
   void initState() {
@@ -64,7 +69,6 @@ class _HandLoadingScreenState extends State<HandLoadingScreen> {
       const int baseDelayMs = 900;
 
       for (var i = 1; i <= maxTry; i++) {
-        _tryNo = i;
         if (mounted) {
           setState(() {
             _statusText = 'Yorum hazırlanıyor… (deneme $i/$maxTry)';
@@ -74,11 +78,9 @@ class _HandLoadingScreenState extends State<HandLoadingScreen> {
         try {
           // 1) önce mevcut durumu çek
           var r = await HandApi.detail(deviceId: deviceId, readingId: widget.readingId);
-          final status = (r.status ?? '').toLowerCase().trim();
-          final result = (r.resultText ?? r.comment ?? '').trim();
 
           // ✅ zaten hazırsa direkt çık
-          if (result.isNotEmpty && status == 'completed') {
+          if (_isReady(r)) {
             break;
           }
 
@@ -95,10 +97,8 @@ class _HandLoadingScreenState extends State<HandLoadingScreen> {
 
           // 3) generate sonrası tekrar detail çek (DB güncellenmiş mi?)
           r = await HandApi.detail(deviceId: deviceId, readingId: widget.readingId);
-          final status2 = (r.status ?? '').toLowerCase().trim();
-          final result2 = (r.resultText ?? r.comment ?? '').trim();
 
-          if (result2.isNotEmpty && status2 == 'completed') {
+          if (_isReady(r)) {
             break;
           }
 
@@ -132,15 +132,12 @@ class _HandLoadingScreenState extends State<HandLoadingScreen> {
 
       if (!mounted) return;
 
-      // ✅ sonuç ekranına geç
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => HandResultScreen(readingId: widget.readingId)),
-        (route) => false,
+      // ✅ yeni akış: önce yorum hazırlansın, sonra ödeme/kilit ekranına geç
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => HandPaymentScreen(readingId: widget.readingId)),
       );
     } catch (e) {
       if (!mounted) return;
-
-      final msg = _extractUserMessage(e);
 
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(

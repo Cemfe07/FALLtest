@@ -115,6 +115,7 @@ class SynastryStatusResponse {
   final String readingId;
   final String status;
   final bool isPaid;
+  final bool hasResult;
   final String? resultText;
   final int? rating;
   final String? paymentRef;
@@ -126,6 +127,7 @@ class SynastryStatusResponse {
     required this.readingId,
     required this.status,
     required this.isPaid,
+    required this.hasResult,
     this.resultText,
     this.rating,
     this.paymentRef,
@@ -136,6 +138,7 @@ class SynastryStatusResponse {
     final rid = _s(j["reading_id"] ?? j["readingId"] ?? j["id"]);
     final st = _s(j["status"], "");
     final paid = _b(j["is_paid"] ?? j["isPaid"], false);
+    final hasResult = _b(j["has_result"] ?? j["hasResult"], false);
 
     final rt = _s(j["result_text"] ?? j["resultText"], "").trim();
     final pr = _s(j["payment_ref"] ?? j["paymentRef"], "").trim();
@@ -152,6 +155,7 @@ class SynastryStatusResponse {
       readingId: rid,
       status: st,
       isPaid: paid,
+      hasResult: hasResult,
       resultText: rt.isEmpty ? null : rt,
       rating: _i(j["rating"]),
       paymentRef: pr.isEmpty ? null : pr,

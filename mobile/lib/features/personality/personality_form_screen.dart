@@ -3,7 +3,7 @@ import 'package:lunaura/widgets/mystic_scaffold.dart';
 import 'package:lunaura/services/personality_api.dart';
 import 'package:lunaura/services/profile_store.dart';
 
-import 'personality_payment_screen.dart';
+import 'personality_generating_screen.dart';
 
 class PersonalityFormScreen extends StatefulWidget {
   const PersonalityFormScreen({super.key});
@@ -229,7 +229,7 @@ class _PersonalityFormScreenState extends State<PersonalityFormScreen> {
 
       Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (_) => PersonalityPaymentScreen(
+          builder: (_) => PersonalityGeneratingScreen(
             readingId: reading.id,
             name: name,
             birthDate: _fmtDate(_birthDate!),

@@ -42,12 +42,8 @@ def _run_generation_in_background(reading_id: str) -> None:
             if r.status == "completed" and (r.result_text or "").strip():
                 return
 
-            if not r.is_paid:
-                tarot_repo.set_status(session, reading_id, "paid" if r.payment_ref else "pending_payment")
-                return
-
             if not r.get_cards():
-                tarot_repo.set_status(session, reading_id, "paid")
+                tarot_repo.set_status(session, reading_id, "paid" if r.is_paid else "pending_payment")
                 return
 
             try:
@@ -77,7 +73,7 @@ def _run_generation_in_background(reading_id: str) -> None:
                     reading_id,
                 )
                 if attempt == max_attempts:
-                    tarot_repo.set_status(session, reading_id, "paid")
+                    tarot_repo.set_status(session, reading_id, "paid" if r.is_paid else "pending_payment")
                     return
                 import time
                 time.sleep(5)
@@ -90,6 +86,7 @@ def _spawn_thread(reading_id: str) -> None:
 
 def _to_schema(r: TarotReadingDB) -> TarotReading:
     """Ödeme yapılmamışsa yorum (result_text) istemciye gönderilmez."""
+    has_result = bool((r.result_text or "").strip())
     result_text = r.result_text if r.is_paid else None
     return TarotReading(
         id=r.id,
@@ -100,6 +97,7 @@ def _to_schema(r: TarotReadingDB) -> TarotReading:
         spread_type=r.spread_type,
         selected_cards=r.get_cards(),
         status=r.status,
+        has_result=has_result,
         result_text=result_text,
         rating=getattr(r, "rating", None),
         is_paid=r.is_paid,

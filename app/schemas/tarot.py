@@ -39,6 +39,7 @@ class TarotReading(BaseModel):
     selected_cards: List[str] = Field(default_factory=list)
 
     status: str
+    has_result: bool = False
     result_text: Optional[str] = None
     rating: Optional[int] = None
 

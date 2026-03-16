@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../core/app_colors.dart';
@@ -7,8 +6,8 @@ import '../../services/device_id_service.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/mystic_scaffold.dart';
 
+import 'coffee_payment_screen.dart';
 import '../profile/profile_screen.dart';
-import 'coffee_result_screen.dart';
 
 class CoffeeLoadingScreen extends StatefulWidget {
   final String readingId;
@@ -19,30 +18,22 @@ class CoffeeLoadingScreen extends StatefulWidget {
 }
 
 class _CoffeeLoadingScreenState extends State<CoffeeLoadingScreen> {
-  Timer? _timer;
-
-  bool _done = false;
+  bool _running = false;
   bool _error = false;
   String? _errorMsg;
-
   int _elapsed = 0;
-  static const int _pollSec = 2;
-
-  bool _generateTriggered = false;
-  String _lastStatus = '';
-
   static const int _hardWarnSec = 45;
-  static const int _hardTimeoutSec = 180; // ✅ yeni: 3 dk sonra çıkış opsiyonu
+  static const int _hardTimeoutSec = 180;
+  String _hint = 'AI fincanınızı yorumluyor…';
 
   @override
   void initState() {
     super.initState();
-    _startPolling();
+    _run();
   }
 
   @override
   void dispose() {
-    _timer?.cancel();
     super.dispose();
   }
 
@@ -53,84 +44,71 @@ class _CoffeeLoadingScreenState extends State<CoffeeLoadingScreen> {
         s.contains('software caused') || s.contains('499');
   }
 
-  bool _asBool(dynamic v) {
-    if (v is bool) return v;
-    if (v is num) return v != 0;
-    final s = (v ?? '').toString().toLowerCase().trim();
-    return s == 'true' || s == '1' || s == 'yes';
+  bool _isReadyFromDetail(Map<String, dynamic> d) {
+    final hasResult = d['has_result'] == true;
+    final status = (d['status'] ?? '').toString().toLowerCase().trim();
+    return hasResult || status == 'completed' || status == 'done' || status == 'ready_locked';
   }
 
-  Future<void> _startPolling() async {
-    _timer?.cancel();
-    _elapsed = 0;
-    _timer = Timer.periodic(const Duration(seconds: _pollSec), (_) => _pollOnce());
-    await _pollOnce();
-  }
-
-  Future<void> _pollOnce() async {
-    if (_done) return;
-
-    _elapsed += _pollSec;
-
-    // ✅ hard timeout: kullanıcıyı sonsuza bırakma
-    if (_elapsed >= _hardTimeoutSec) {
-      if (mounted) {
-        setState(() {
-          _error = true;
-          _errorMsg = "Zaman aşımı. Sunucu yanıtı gecikti. Ana sayfaya dönebilirsin.";
-        });
-      }
-      return;
-    }
+  Future<void> _run() async {
+    if (_running) return;
+    _running = true;
 
     try {
       final deviceId = await DeviceIdService.getOrCreate();
-      final d = await CoffeeApi.detailRaw(readingId: widget.readingId, deviceId: deviceId);
+      const maxTry = 10;
+      const baseDelayMs = 900;
 
-      final status = (d['status'] ?? '').toString().trim();
-      final isPaid = _asBool(d['is_paid']);
-
-      final text = ((d['comment'] ?? d['result_text']) ?? '').toString().trim();
-
-      // ✅ En sağlam kural: text geldiyse iş bitmiştir (status’a güvenme)
-      if (text.isNotEmpty) {
-        _done = true;
+      for (var i = 1; i <= maxTry; i++) {
         if (!mounted) return;
 
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => CoffeeResultScreen(resultText: text)),
-          (route) => false,
-        );
-        return;
-      }
+        setState(() {
+          _elapsed = (i * baseDelayMs / 1000).round();
+          _hint = "Yorum hazırlanıyor… (deneme $i/$maxTry)";
+        });
 
-      // ✅ processing -> paid dönüşü: generate yeniden tetiklenebilir
-      final cameBackFromProcessing = (_lastStatus == 'processing' && status == 'paid');
+        Map<String, dynamic>? d;
+        try {
+          d = await CoffeeApi.detailRaw(readingId: widget.readingId, deviceId: deviceId);
+        } catch (_) {}
 
-      // ✅ ödeme doğrulandıysa generate tetikle (connection abort -> poll devam)
-      if (isPaid && (!_generateTriggered || cameBackFromProcessing)) {
-        if (status != 'processing') {
-          try {
-            _generateTriggered = true;
-            await CoffeeApi.generate(readingId: widget.readingId, deviceId: deviceId);
-          } catch (e) {
-            if (_isConnectionAbort(e)) {
-              _generateTriggered = false;
-            } else {
-              rethrow;
-            }
+        if (d != null && _isReadyFromDetail(d)) {
+          if (!mounted) return;
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => CoffeePaymentScreen(readingId: widget.readingId)),
+          );
+          return;
+        }
+
+        try {
+          await CoffeeApi.generate(readingId: widget.readingId, deviceId: deviceId);
+        } catch (e) {
+          if (!_isConnectionAbort(e) && mounted && i == maxTry) {
+            setState(() {
+              _error = true;
+              _errorMsg = e.toString();
+            });
+            return;
           }
         }
+
+        if (_elapsed >= _hardTimeoutSec) {
+          if (!mounted) return;
+          setState(() {
+            _error = true;
+            _errorMsg = "Zaman aşımı. Yorum henüz hazır değil, Benim Okumalarım'dan takip edebilirsin.";
+          });
+          return;
+        }
+
+        await Future.delayed(Duration(milliseconds: baseDelayMs * i));
       }
 
-      _lastStatus = status;
-
-      if (mounted) {
-        setState(() {
-          _error = false;
-          _errorMsg = null;
-        });
-      }
+      if (!mounted) return;
+      setState(() {
+        _error = true;
+        _errorMsg = "Yorum henüz tamamlanamadı. Benim Okumalarım'dan takip edebilirsin.";
+      });
     } catch (e) {
       if (mounted && !_isConnectionAbort(e)) {
         setState(() {
@@ -138,27 +116,8 @@ class _CoffeeLoadingScreenState extends State<CoffeeLoadingScreen> {
           _errorMsg = e.toString();
         });
       }
-    }
-  }
-
-  Future<void> _forceRetryGenerate() async {
-    try {
-      final deviceId = await DeviceIdService.getOrCreate();
-      _generateTriggered = true;
-      await CoffeeApi.generate(readingId: widget.readingId, deviceId: deviceId);
-      if (mounted) {
-        setState(() {
-          _error = false;
-          _errorMsg = null;
-        });
-      }
-    } catch (e) {
-      if (mounted && !_isConnectionAbort(e)) {
-        setState(() {
-          _error = true;
-          _errorMsg = e.toString();
-        });
-      }
+    } finally {
+      _running = false;
     }
   }
 
@@ -202,7 +161,7 @@ class _CoffeeLoadingScreenState extends State<CoffeeLoadingScreen> {
                     ),
                     const SizedBox(height: 14),
                     Text(
-                      _error ? 'Bağlantı sorunu oluştu' : 'AI fincanınızı yorumluyor…',
+                      _error ? 'Yorum henüz hazır değil' : 'AI fincanınızı yorumluyor…',
                       style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
                       textAlign: TextAlign.center,
                     ),
@@ -211,8 +170,8 @@ class _CoffeeLoadingScreenState extends State<CoffeeLoadingScreen> {
                       _error
                           ? (_errorMsg ?? 'Bilinmeyen hata')
                           : (hardWarn
-                              ? 'Beklenenden uzun sürdü. İstersen yeniden tetikleyebilirsin.'
-                              : 'Kişiselleştirilmiş yorumunuz hazırlanıyor.'),
+                              ? 'Beklenenden uzun sürdü. Hazır olduğunda otomatik ödeme adımına geçeceksin.'
+                              : _hint),
                       textAlign: TextAlign.center,
                       style: TextStyle(color: Colors.white.withOpacity(0.75), height: 1.25),
                     ),
@@ -226,7 +185,7 @@ class _CoffeeLoadingScreenState extends State<CoffeeLoadingScreen> {
                               _error = false;
                               _errorMsg = null;
                             });
-                            await _startPolling();
+                            await _run();
                           },
                           child: const Text('Tekrar Dene'),
                         ),
@@ -241,13 +200,6 @@ class _CoffeeLoadingScreenState extends State<CoffeeLoadingScreen> {
                       ),
                     ],
                     if (!_error && hardWarn) ...[
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: _forceRetryGenerate,
-                          child: const Text('Yeniden Tetikle'),
-                        ),
-                      ),
                       const SizedBox(height: 8),
                       SizedBox(
                         width: double.infinity,

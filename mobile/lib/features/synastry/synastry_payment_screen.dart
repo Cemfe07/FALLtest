@@ -1,13 +1,14 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../../models/synastry_models.dart';
 import '../../services/device_id_service.dart';
 import '../../services/iap_service.dart';
 import '../../services/product_catalog.dart';
 
 import '../../services/synastry_api.dart';
 import '../../widgets/mystic_scaffold.dart';
-import 'synastry_generating_screen.dart';
+import 'synastry_result_screen.dart';
 
 class SynastryPaymentScreen extends StatefulWidget {
   final String readingId;
@@ -25,27 +26,62 @@ class SynastryPaymentScreen extends StatefulWidget {
 
 class _SynastryPaymentScreenState extends State<SynastryPaymentScreen> {
   bool _loading = false;
+  bool _loadingReading = true;
   String? _lastPaymentId;
-  String _phase = 'idle';
+  SynastryStatusResponse? _reading;
+  String? _loadError;
   String? _deviceId;
 
   final String _sku = ProductCatalog.synastry149;
 
   // Debug'da store test etmek istersen true
   static const bool debugUseStoreIap = false;
+  
+  @override
+  void initState() {
+    super.initState();
+    _loadReading();
+  }
 
-  void _fireGenerate() {
-    final api = SynastryApi();
-    DeviceIdService.getOrCreate().then((deviceId) {
-      api.generate(widget.readingId, deviceId: deviceId).catchError((_) {});
+  bool _isReadyLockedOrDone(SynastryStatusResponse? r) {
+    if (r == null) return false;
+    if (r.hasResult) return true;
+    final s = r.status.toLowerCase().trim();
+    return s == 'done' || s == 'completed' || s == 'ready_locked' || s == 'ready_unlocked';
+  }
+
+  Future<void> _loadReading() async {
+    setState(() {
+      _loadingReading = true;
+      _loadError = null;
     });
+    try {
+      final did = await DeviceIdService.getOrCreate();
+      if (mounted) setState(() => _deviceId = did);
+      final api = SynastryApi();
+      final r = await api.getStatus(widget.readingId, deviceId: did);
+      if (!mounted) return;
+      setState(() => _reading = r);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _loadError = '$e');
+    } finally {
+      if (mounted) setState(() => _loadingReading = false);
+    }
   }
 
   Future<void> _payAndStart() async {
     if (_loading) return;
+    final text = (_reading?.resultText ?? '').trim();
+    final readyByStatus = _isReadyLockedOrDone(_reading);
+    if (text.isEmpty && !readyByStatus) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Yorumun henüz hazır değil. Birkaç dakika içinde Profil > Benim Okumalarım’dan tekrar deneyebilirsin.')),
+      );
+      return;
+    }
     setState(() {
       _loading = true;
-      _phase = 'paying';
     });
 
     try {
@@ -69,13 +105,40 @@ class _SynastryPaymentScreenState extends State<SynastryPaymentScreen> {
         }
 
         if (mounted) setState(() => _lastPaymentId = verify.paymentId);
+      } else {
+        final api = SynastryApi();
+        await api.markPaid(
+          widget.readingId,
+          paymentRef: 'TEST-DEBUG',
+          deviceId: deviceId,
+        );
       }
 
-      _fireGenerate();
+      final api = SynastryApi();
+      SynastryStatusResponse? finalReading;
+      for (var i = 0; i < 8; i++) {
+        final rr = await api.getStatus(widget.readingId, deviceId: deviceId);
+        final txt = (rr.resultText ?? '').trim();
+        if (txt.isNotEmpty) {
+          finalReading = rr;
+          break;
+        }
+        await Future.delayed(Duration(milliseconds: 500 + (i * 250)));
+      }
+      finalReading ??= await api.getStatus(widget.readingId, deviceId: deviceId);
+      final resultText = (finalReading.resultText ?? '').trim();
+      if (resultText.isEmpty) {
+        throw Exception('Yorum metni henüz açılamadı. Lütfen tekrar dene.');
+      }
+
       if (!mounted) return;
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => SynastryGeneratingScreen(readingId: widget.readingId)),
-        (route) => false,
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => SynastryResultScreen(
+            readingId: widget.readingId,
+            resultText: resultText,
+          ),
+        ),
       );
     } catch (e) {
       if (!mounted) return;
@@ -83,10 +146,7 @@ class _SynastryPaymentScreenState extends State<SynastryPaymentScreen> {
         SnackBar(content: Text('Ödeme hatası: $e')),
       );
     } finally {
-      if (mounted) setState(() {
-        _loading = false;
-        _phase = 'idle';
-      });
+      if (mounted) setState(() => _loading = false);
     }
   }
 
@@ -117,9 +177,9 @@ class _SynastryPaymentScreenState extends State<SynastryPaymentScreen> {
                       style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900),
                     ),
                     const SizedBox(height: 10),
-                    const Text(
-                      "Ödeme doğrulandıktan sonra analiz üretimine geçilir.",
-                      style: TextStyle(color: Colors.white70, height: 1.25),
+                    Text(
+                      "Yorumun hazır olduğunda kilidi açarsın.",
+                      style: TextStyle(color: Colors.white.withOpacity(0.82), height: 1.25),
                     ),
                     const SizedBox(height: 12),
                     const Text(
@@ -152,6 +212,44 @@ class _SynastryPaymentScreenState extends State<SynastryPaymentScreen> {
                       Text("Son işlem: $_lastPaymentId", style: const TextStyle(color: Colors.white70, fontSize: 12)),
                     ],
 
+                    const SizedBox(height: 12),
+                    if (_loadingReading)
+                      Row(
+                        children: [
+                          const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            'Yorum durumu kontrol ediliyor...',
+                            style: TextStyle(color: Colors.white.withOpacity(0.82), fontSize: 12),
+                          ),
+                        ],
+                      )
+                    else if (_loadError != null)
+                      Text(
+                        'Durum alınamadı: $_loadError',
+                        style: TextStyle(color: Colors.white.withOpacity(0.85), fontSize: 12),
+                      )
+                    else if ((_reading?.resultText ?? '').trim().isEmpty && !_isReadyLockedOrDone(_reading))
+                      Text(
+                        'Yorumun henüz tamamen hazır değil. Hazır olduğunda bu ekrandan kilidi açabilirsin.',
+                        style: TextStyle(color: Colors.white.withOpacity(0.90), fontSize: 13),
+                      )
+                    else ...[
+                      const Text(
+                        'Yorumun hazır 🎉',
+                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Ödemeyi tamamlayınca sinastri yorumunun tamamı açılır.',
+                        style: TextStyle(color: Colors.white.withOpacity(0.86), fontSize: 12),
+                      ),
+                    ],
+
                     // sadece debug amaçlı
                     if (!kReleaseMode && _deviceId != null) ...[
                       const SizedBox(height: 6),
@@ -170,14 +268,14 @@ class _SynastryPaymentScreenState extends State<SynastryPaymentScreen> {
                     foregroundColor: Colors.black,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   ),
-                  onPressed: _loading ? null : _payAndStart,
+                  onPressed: (_loading || _loadingReading) ? null : _payAndStart,
                   child: _loading
                       ? const Text(
                           'Ödeme işleniyor...',
                           style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
                         )
                       : const Text(
-                          "Öde → Analizi Başlat",
+                          "Ödemeyi Tamamla ✨",
                           style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
                         ),
                 ),

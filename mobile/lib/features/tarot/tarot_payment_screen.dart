@@ -12,20 +12,20 @@ import '../../widgets/mystic_scaffold.dart';
 
 import 'tarot_deck.dart';
 import 'tarot_models.dart';
-import 'tarot_processing_screen.dart';
+import 'tarot_result_screen.dart';
 
 class TarotPaymentScreen extends StatefulWidget {
   final String readingId;
-  final String question;
-  final TarotSpreadType spreadType;
+  final String? question;
+  final TarotSpreadType? spreadType;
   final List<TarotCard> selectedCards;
 
   const TarotPaymentScreen({
     super.key,
     required this.readingId,
-    required this.question,
-    required this.spreadType,
-    required this.selectedCards,
+    this.question,
+    this.spreadType,
+    this.selectedCards = const [],
   });
 
   @override
@@ -34,13 +34,17 @@ class TarotPaymentScreen extends StatefulWidget {
 
 class _TarotPaymentScreenState extends State<TarotPaymentScreen> {
   bool _loading = false;
+  bool _loadingReading = true;
   String? _lastPaymentId;
-  String _phase = 'idle';
+  Map<String, dynamic>? _reading;
+  String? _loadError;
 
   static const bool debugUseStoreIap = true;
 
+  TarotSpreadType get _effectiveSpreadType => widget.spreadType ?? TarotSpreadType.three;
+
   double get _amount {
-    switch (widget.spreadType) {
+    switch (_effectiveSpreadType) {
       case TarotSpreadType.three:
         return 149.0;
       case TarotSpreadType.six:
@@ -51,7 +55,7 @@ class _TarotPaymentScreenState extends State<TarotPaymentScreen> {
   }
 
   String get _sku {
-    switch (widget.spreadType) {
+    switch (_effectiveSpreadType) {
       case TarotSpreadType.three:
         return ProductCatalog.tarot3_149;
       case TarotSpreadType.six:
@@ -62,7 +66,7 @@ class _TarotPaymentScreenState extends State<TarotPaymentScreen> {
   }
 
   String get _packageTitle {
-    switch (widget.spreadType) {
+    switch (_effectiveSpreadType) {
       case TarotSpreadType.three:
         return "Hızlı Açılım (3 Kart)";
       case TarotSpreadType.six:
@@ -73,7 +77,7 @@ class _TarotPaymentScreenState extends State<TarotPaymentScreen> {
   }
 
   String get _packageSubtitle {
-    switch (widget.spreadType) {
+    switch (_effectiveSpreadType) {
       case TarotSpreadType.three:
         return "Geçmiş–Şimdi–Yakın Gelecek ekseninde net bir okuma.";
       case TarotSpreadType.six:
@@ -81,6 +85,33 @@ class _TarotPaymentScreenState extends State<TarotPaymentScreen> {
       case TarotSpreadType.twelve:
         return "Kapsamlı tema analizi, ek mesajlar ve güçlü kapanış.";
     }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadReading();
+  }
+
+  bool _asBool(dynamic v) {
+    if (v is bool) return v;
+    if (v is num) return v != 0;
+    final s = (v ?? '').toString().toLowerCase().trim();
+    return s == 'true' || s == '1' || s == 'yes';
+  }
+
+  TarotSpreadType _spreadFromRaw(dynamic raw) {
+    final s = (raw ?? '').toString().toLowerCase().trim();
+    if (s == 'six') return TarotSpreadType.six;
+    if (s == 'twelve') return TarotSpreadType.twelve;
+    return TarotSpreadType.three;
+  }
+
+  bool _isReadyLockedOrDone(Map<String, dynamic>? d) {
+    if (d == null) return false;
+    if (_asBool(d['has_result'])) return true;
+    final s = (d['status'] ?? '').toString().toLowerCase().trim();
+    return s == 'completed' || s == 'done' || s == 'ready_locked' || s == 'ready_unlocked';
   }
 
   // ✅ Backend formatı: ["major_18_moon|R", "major_00_fool|U", ...]
@@ -91,23 +122,70 @@ class _TarotPaymentScreenState extends State<TarotPaymentScreen> {
     }).toList();
   }
 
-  void _fireGenerate() {
-    DeviceIdService.getOrCreate().then((deviceId) {
-      TarotApi.generate(readingId: widget.readingId, deviceId: deviceId).catchError((_) {});
+  Future<void> _loadReading() async {
+    setState(() {
+      _loadingReading = true;
+      _loadError = null;
     });
+    try {
+      final deviceId = await DeviceIdService.getOrCreate();
+      final d = await TarotApi.detail(readingId: widget.readingId, deviceId: deviceId);
+      if (!mounted) return;
+      setState(() => _reading = d);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _loadError = '$e');
+    } finally {
+      if (mounted) setState(() => _loadingReading = false);
+    }
+  }
+
+  Future<void> _openResultAfterUnlock({required String deviceId}) async {
+    Map<String, dynamic> d = await TarotApi.detail(readingId: widget.readingId, deviceId: deviceId);
+    for (var i = 0; i < 8; i++) {
+      final txt = (d['result_text'] ?? '').toString().trim();
+      if (txt.isNotEmpty) break;
+      await Future.delayed(Duration(milliseconds: 500 + (i * 250)));
+      d = await TarotApi.detail(readingId: widget.readingId, deviceId: deviceId);
+    }
+    final resultText = (d['result_text'] ?? '').toString().trim();
+    if (resultText.isEmpty) {
+      throw Exception('Yorum metni henüz açılamadı. Lütfen tekrar dene.');
+    }
+
+    final question = (widget.question ?? '').trim().isNotEmpty
+        ? widget.question!.trim()
+        : (d['question'] ?? 'Tarot').toString();
+    final spreadType = widget.spreadType ?? _spreadFromRaw(d['spread_type']);
+    final selectedCards = widget.selectedCards.isNotEmpty
+        ? widget.selectedCards
+        : TarotDeck.cardsFromApiList((d['selected_cards'] is List) ? (d['selected_cards'] as List) : const []);
+
+    if (!mounted) return;
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (_) => TarotResultScreen(
+          question: question,
+          spreadType: spreadType,
+          selectedCards: selectedCards,
+          resultText: resultText,
+        ),
+      ),
+    );
   }
 
   Future<void> _payStoreIap() async {
     final deviceId = await DeviceIdService.getOrCreate();
 
-    // ✅ 0) KRİTİK GARANTİ:
-    // ÖDEME BAŞLAMADAN ÖNCE seçilen kartlar DB’ye yazılsın.
-    // /payments/verify tarot’ta “cards boş” edge-case’ini sıfırlar.
-    await TarotApi.selectCards(
-      readingId: widget.readingId,
-      cards: _cardsForApi(),
-      deviceId: deviceId,
-    );
+    // Seçim ekranından gelindiyse kartları yeniden güvenceye al.
+    final cards = _cardsForApi();
+    if (cards.isNotEmpty) {
+      await TarotApi.selectCards(
+        readingId: widget.readingId,
+        cards: cards,
+        deviceId: deviceId,
+      );
+    }
 
     final verify = await IapService.instance.buyAndVerify(
       readingId: widget.readingId,
@@ -119,26 +197,22 @@ class _TarotPaymentScreenState extends State<TarotPaymentScreen> {
     }
 
     if (mounted) setState(() => _lastPaymentId = verify.paymentId);
-
-    _fireGenerate();
-    if (!mounted) return;
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(
-        builder: (_) => TarotProcessingScreen(
-          readingId: widget.readingId,
-          question: widget.question,
-          spreadType: widget.spreadType,
-          selectedCards: widget.selectedCards,
-        ),
-      ),
-      (route) => false,
-    );
+    await _openResultAfterUnlock(deviceId: deviceId);
   }
 
   Future<void> _payAndContinue() async {
+    if (_loading) return;
+    final text = ((_reading?['result_text'] ?? '').toString()).trim();
+    final readyByStatus = _isReadyLockedOrDone(_reading);
+    if (text.isEmpty && !readyByStatus) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Yorumun henüz hazır değil. Birkaç dakika içinde Profil > Benim Okumalarım’dan tekrar deneyebilirsin.')),
+      );
+      return;
+    }
+
     setState(() {
       _loading = true;
-      _phase = 'paying';
     });
     try {
       if (kReleaseMode) {
@@ -147,38 +221,30 @@ class _TarotPaymentScreenState extends State<TarotPaymentScreen> {
         if (debugUseStoreIap) {
           await _payStoreIap();
         } else {
-          // Debug'da store kullanmıyorsan processing’e geç (generate’i processing tetikler)
           final devId = await DeviceIdService.getOrCreate();
-          await TarotApi.selectCards(
+          final cards = _cardsForApi();
+          if (cards.isNotEmpty) {
+            await TarotApi.selectCards(
+              readingId: widget.readingId,
+              cards: cards,
+              deviceId: devId,
+            );
+          }
+          await TarotApi.markPaid(
             readingId: widget.readingId,
-            cards: _cardsForApi(),
+            paymentRef: 'TEST-DEBUG',
             deviceId: devId,
           );
-          _fireGenerate();
-          if (!mounted) return;
-          Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(
-              builder: (_) => TarotProcessingScreen(
-                readingId: widget.readingId,
-                question: widget.question,
-                spreadType: widget.spreadType,
-                selectedCards: widget.selectedCards,
-              ),
-            ),
-            (route) => false,
-          );
+          await _openResultAfterUnlock(deviceId: devId);
         }
       }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Ödeme/Yorum hatası: $e')),
+        SnackBar(content: Text('Ödeme hatası: $e')),
       );
     } finally {
-      if (mounted) setState(() {
-        _loading = false;
-        _phase = 'idle';
-      });
+      if (mounted) setState(() => _loading = false);
     }
   }
 
@@ -262,28 +328,54 @@ class _TarotPaymentScreenState extends State<TarotPaymentScreen> {
                       'Son işlem: $_lastPaymentId',
                       style: TextStyle(color: Colors.white.withOpacity(0.75)),
                     ),
+                  const SizedBox(height: 10),
+                  if (_loadingReading)
+                    Row(
+                      children: [
+                        const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          'Yorum durumu kontrol ediliyor...',
+                          style: TextStyle(color: Colors.white.withOpacity(0.82), fontSize: 12),
+                        ),
+                      ],
+                    )
+                  else if (_loadError != null)
+                    Text(
+                      'Durum alınamadı: $_loadError',
+                      style: TextStyle(color: Colors.white.withOpacity(0.85), fontSize: 12),
+                    )
+                  else if (((_reading?['result_text'] ?? '').toString().trim().isEmpty) && !_isReadyLockedOrDone(_reading))
+                    Text(
+                      'Yorumun henüz tamamen hazır değil. Hazır olduğunda bu ekrandan kilidi açabilirsin.',
+                      style: TextStyle(color: Colors.white.withOpacity(0.90), fontSize: 13),
+                    )
+                  else ...[
+                    const Text(
+                      'Yorumun hazır 🎉',
+                      style: TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Ödemeyi tamamlayınca tarot yorumunun tamamı açılır.',
+                      style: TextStyle(color: Colors.white.withOpacity(0.86), fontSize: 12),
+                    ),
+                  ],
                 ],
               ),
             ),
-            if (_phase == 'preparing')
-              Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Text(
-                  'Yorumunuz hazırlanıyor, lütfen bekleyin...',
-                  style: TextStyle(color: Colors.white.withOpacity(0.85), fontSize: 13),
-                  textAlign: TextAlign.center,
-                ),
-              ),
             const SizedBox(height: 12),
             GradientButton(
-              text: _loading
-                  ? (_phase == 'preparing' ? 'Yorumunuz hazırlanıyor...' : 'Ödeme işleniyor...')
-                  : 'Ödemeyi Başlat ve Yorumu Gör',
-              onPressed: _loading ? null : _payAndContinue,
+              text: _loading ? 'Ödeme işleniyor...' : 'Ödemeyi Başlat ve Yorumu Gör',
+              onPressed: (_loading || _loadingReading) ? null : _payAndContinue,
             ),
             const SizedBox(height: 10),
             Text(
-              'Ödeme sonrası yorum hazırlanır ve sonuç ekranına otomatik yönlendirilirsin.',
+              'Yorum önce hazırlanır, ödeme sonrası kilit açılır.',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.white.withOpacity(0.70), fontSize: 12),
             ),

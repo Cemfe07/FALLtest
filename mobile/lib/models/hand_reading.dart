@@ -9,6 +9,7 @@ class HandReading {
   final String? dominantHand;
   final String? photoHand;
   final String status;
+  final bool hasResult;
   final List<String> photos;
 
   final String? comment;
@@ -27,6 +28,7 @@ class HandReading {
     required this.dominantHand,
     required this.photoHand,
     required this.status,
+    required this.hasResult,
     required this.photos,
     required this.comment,
     required this.resultText,
@@ -45,6 +47,7 @@ class HandReading {
       dominantHand: j['dominant_hand'] as String?,
       photoHand: j['photo_hand'] as String?,
       status: (j['status'] ?? '') as String,
+      hasResult: (j['has_result'] ?? false) == true,
       photos: ((j['photos'] ?? []) as List).map((e) => e.toString()).toList(),
       comment: j['comment'] as String?,
       resultText: j['result_text'] as String?,

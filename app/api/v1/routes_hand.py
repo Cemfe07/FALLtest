@@ -62,6 +62,7 @@ def _get_or_404_owner(session: Session, reading_id: str, device_id: str) -> Hand
 def _to_schema(r: HandReadingDB) -> HandReading:
     """Ödeme yapılmamışsa yorum (result_text/comment) istemciye gönderilmez."""
     photos = list_photos(r)
+    has_result = bool((r.result_text or "").strip())
     result = (r.result_text if r.is_paid else None)
 
     return HandReading(
@@ -72,6 +73,7 @@ def _to_schema(r: HandReadingDB) -> HandReading:
         age=r.age,
         photos=photos,
         status=r.status,
+        has_result=has_result,
         comment=result,
         result_text=result,
         rating=r.rating,

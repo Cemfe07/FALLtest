@@ -7,6 +7,7 @@ import '../../widgets/mystic_scaffold.dart';
 
 import '../profile/profile_screen.dart';
 import 'tarot_models.dart';
+import 'tarot_payment_screen.dart';
 import 'tarot_result_screen.dart';
 
 class TarotProcessingScreen extends StatefulWidget {
@@ -48,6 +49,12 @@ class _TarotProcessingScreenState extends State<TarotProcessingScreen> {
   static const int _silentRetryEverySec = 15;
   int _lastSilentRetryAt = 0;
   static const int _showAlternativesAfterSec = 90;  // 90 sn sonra "Profil'e git" göster
+
+  bool _isReady(Map<String, dynamic> d) {
+    final status = (d['status'] ?? '').toString().toLowerCase().trim();
+    final hasResult = _asBool(d['has_result']);
+    return hasResult || status == 'completed' || status == 'done' || status == 'ready_locked' || status == 'ready_unlocked';
+  }
 
   @override
   void initState() {
@@ -95,9 +102,10 @@ class _TarotProcessingScreenState extends State<TarotProcessingScreen> {
       final status = (d['status'] ?? '').toString().trim();
       final text = (d['result_text'] ?? '').toString().trim();
       final isPaid = _asBool(d['is_paid']);
+      final ready = _isReady(d);
 
-      // ✅ Sonuç geldiyse bitir
-      if (status == 'completed' && text.isNotEmpty) {
+      // Ödeme yapılmış ve sonuç açılmışsa sonuç ekranı
+      if (isPaid && text.isNotEmpty) {
         _done = true;
         if (!mounted) return;
 
@@ -114,12 +122,27 @@ class _TarotProcessingScreenState extends State<TarotProcessingScreen> {
         return;
       }
 
-      // ✅ is_paid == true ise generate tetiklenebilir
-      final cameBackFromProcessing =
-          (_lastStatus == 'processing' && (status == 'paid' || status == 'selected'));
+      // Yorum hazırsa (kilitli) ödeme ekranına geç
+      if (!isPaid && ready) {
+        _done = true;
+        if (!mounted) return;
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => TarotPaymentScreen(
+              readingId: widget.readingId,
+              question: widget.question,
+              spreadType: widget.spreadType,
+              selectedCards: widget.selectedCards,
+            ),
+          ),
+        );
+        return;
+      }
 
       // 1) İlk tetikleme (connection abort -> sonraki poll tekrar dener)
-      if (isPaid && (!_generateTriggered || cameBackFromProcessing)) {
+      final cameBackFromProcessing =
+          (_lastStatus == 'processing' && (status == 'pending_payment' || status == 'selected' || status == 'paid'));
+      if (!ready && (!_generateTriggered || cameBackFromProcessing)) {
         if (status != 'processing') {
           try {
             _generateTriggered = true;
@@ -133,7 +156,7 @@ class _TarotProcessingScreenState extends State<TarotProcessingScreen> {
 
       // 2) Sessiz otomatik retry
       // Uzun sürerse, belirli aralıklarla generate’i tekrar dene.
-      if (isPaid &&
+      if (!ready &&
           _elapsed >= _silentRetryStartSec &&
           (_elapsed - _lastSilentRetryAt) >= _silentRetryEverySec) {
         // processing'te takılı kalmasın diye:
@@ -220,7 +243,7 @@ class _TarotProcessingScreenState extends State<TarotProcessingScreen> {
             Text(
               _error
                   ? (_errorMsg ?? 'Bilinmeyen hata')
-                  : 'Adım 1: Ödeme alındı ✓\nAdım 2: AI yorumu oluşturuluyor…\nLütfen bu ekranda kalın.',
+                  : 'AI yorumu oluşturuluyor…\nYorum hazır olunca ödeme/kilit ekranına geçeceksin.',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.white.withOpacity(0.85), height: 1.4, fontSize: 14),
             ),

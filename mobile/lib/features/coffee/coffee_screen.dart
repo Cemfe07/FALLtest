@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -10,7 +11,7 @@ import '../../services/profile_store.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/gradient_button.dart';
 import '../../widgets/mystic_scaffold.dart';
-import 'coffee_payment_screen.dart';
+import 'coffee_loading_screen.dart';
 
 class CoffeeScreen extends StatefulWidget {
   const CoffeeScreen({super.key});
@@ -27,7 +28,7 @@ class _CoffeeScreenState extends State<CoffeeScreen> {
   final _ageController = TextEditingController();
 
   final ImagePicker _picker = ImagePicker();
-  final List<File> _photos = [];
+  final List<XFile> _photos = [];
 
   bool _loading = false;
 
@@ -133,7 +134,7 @@ class _CoffeeScreenState extends State<CoffeeScreen> {
     setState(() {
       for (final x in picked) {
         if (_photos.length >= 5) break;
-        _photos.add(File(x.path));
+        _photos.add(x);
       }
     });
   }
@@ -142,7 +143,7 @@ class _CoffeeScreenState extends State<CoffeeScreen> {
     if (_photos.length >= 5) return;
     final picked = await _picker.pickImage(source: ImageSource.camera, imageQuality: 85);
     if (picked == null) return;
-    setState(() => _photos.add(File(picked.path)));
+    setState(() => _photos.add(picked));
   }
 
   void _removePhoto(int index) => setState(() => _photos.removeAt(index));
@@ -222,7 +223,7 @@ class _CoffeeScreenState extends State<CoffeeScreen> {
 
       if (!mounted) return;
       Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => CoffeePaymentScreen(readingId: reading.id)),
+        MaterialPageRoute(builder: (_) => CoffeeLoadingScreen(readingId: reading.id)),
       );
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -267,12 +268,19 @@ class _CoffeeScreenState extends State<CoffeeScreen> {
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(12),
-                child: Image.file(
-                  _photos[i],
-                  fit: BoxFit.cover,
-                  width: double.infinity,
-                  height: double.infinity,
-                ),
+                child: kIsWeb
+                    ? Image.network(
+                        _photos[i].path,
+                        fit: BoxFit.cover,
+                        width: double.infinity,
+                        height: double.infinity,
+                      )
+                    : Image.file(
+                        File(_photos[i].path),
+                        fit: BoxFit.cover,
+                        width: double.infinity,
+                        height: double.infinity,
+                      ),
               ),
               Positioned(
                 right: 4,
@@ -364,7 +372,7 @@ class _CoffeeScreenState extends State<CoffeeScreen> {
               ),
               const SizedBox(height: 18),
               GradientButton(
-                text: _loading ? 'Yükleniyor...' : 'Fal Başlat (Ödeme Adımına Geç)',
+                text: _loading ? 'Yükleniyor...' : 'Devam Et',
                 onPressed: _loading ? null : _submit,
               ),
             ],

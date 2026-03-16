@@ -7,7 +7,7 @@ import '../../services/synastry_api.dart';
 import '../../services/profile_store.dart';
 import '../../widgets/mystic_scaffold.dart';
 
-import 'synastry_payment_screen.dart';
+import 'synastry_generating_screen.dart';
 
 class SynastryInfoScreen extends StatefulWidget {
   const SynastryInfoScreen({super.key});
@@ -177,7 +177,7 @@ class _SynastryInfoScreenState extends State<SynastryInfoScreen> {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) => SynastryPaymentScreen(
+          builder: (_) => SynastryGeneratingScreen(
             readingId: startRes.readingId,
             title: 'Sinastri (Aşk Uyumu)',
           ),
@@ -499,7 +499,7 @@ class _SynastryInfoScreenState extends State<SynastryInfoScreen> {
                           onPressed: _start,
                           child: _loading
                               ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                              : const Text('Devam → Ödeme', style: TextStyle(fontWeight: FontWeight.w900)),
+                              : const Text('Devam Et', style: TextStyle(fontWeight: FontWeight.w900)),
                         ),
                       ),
                     ],

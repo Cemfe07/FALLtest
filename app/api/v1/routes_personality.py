@@ -38,6 +38,7 @@ def _mask_result_if_unpaid(reading: dict) -> dict:
     if not reading:
         return reading
     out = dict(reading)
+    out["has_result"] = bool((out.get("result_text") or "").strip())
     if not out.get("is_paid"):
         out["result_text"] = None
     return out

@@ -27,6 +27,7 @@ class HandReading(BaseModel):
 
     photos: List[str] = []
     status: str
+    has_result: bool = False
     comment: Optional[str] = None
     result_text: Optional[str] = None
     rating: Optional[int] = None

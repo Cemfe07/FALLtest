@@ -7,7 +7,7 @@ import '../../widgets/gradient_button.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/mystic_scaffold.dart';
 
-import 'tarot_payment_screen.dart';
+import 'tarot_processing_screen.dart';
 import 'widgets/tarot_card_tile.dart';
 import 'tarot_deck.dart';
 import 'tarot_models.dart';
@@ -65,7 +65,7 @@ class _TarotSelectScreenState extends State<TarotSelectScreen> {
     setState(() => _revealed = true);
   }
 
-  Future<void> _saveAndGoPayment() async {
+  Future<void> _saveAndContinue() async {
     if (_picked.length != _need || !_revealed) return;
     if (_loading) return;
 
@@ -88,7 +88,7 @@ class _TarotSelectScreenState extends State<TarotSelectScreen> {
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
-          builder: (_) => TarotPaymentScreen(
+          builder: (_) => TarotProcessingScreen(
             readingId: widget.readingId,
             question: widget.question,
             spreadType: widget.spreadType,
@@ -381,7 +381,7 @@ class _TarotSelectScreenState extends State<TarotSelectScreen> {
                   Expanded(
                     child: GradientButton(
                       text: _loading ? "Kaydediliyor..." : "Devam",
-                      onPressed: (_picked.length == _need && _revealed && !_loading) ? _saveAndGoPayment : null,
+                      onPressed: (_picked.length == _need && _revealed && !_loading) ? _saveAndContinue : null,
                     ),
                   ),
                 ],

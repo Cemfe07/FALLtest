@@ -29,6 +29,7 @@ class PersonalityReading {
   final String? question;
 
   final String status;
+  final bool hasResult;
   final String? resultText;
 
   final bool isPaid;
@@ -46,6 +47,7 @@ class PersonalityReading {
     required this.topic,
     required this.question,
     required this.status,
+    required this.hasResult,
     required this.resultText,
     required this.isPaid,
     required this.paymentRef,
@@ -63,6 +65,7 @@ class PersonalityReading {
       topic: (j["topic"] ?? "genel").toString(),
       question: j["question"]?.toString(),
       status: (j["status"] ?? "").toString(),
+      hasResult: (j["has_result"] ?? false) == true,
       resultText: j["result_text"]?.toString(),
       isPaid: (j["is_paid"] ?? false) == true,
       paymentRef: j["payment_ref"]?.toString(),

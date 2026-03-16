@@ -1,6 +1,7 @@
 import 'dart:convert';
-import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 
 import '../models/coffee_reading.dart';
 import 'api_base.dart';
@@ -111,7 +112,7 @@ class CoffeeApi {
 
   static Future<CoffeeReading> uploadImages({
     required String readingId,
-    required List<File> files,
+    required List<XFile> files,
     String? deviceId,
   }) async {
     final did = await _resolveDeviceId(deviceId);
@@ -126,7 +127,15 @@ class CoffeeApi {
     });
 
     for (final f in files) {
-      req.files.add(await http.MultipartFile.fromPath('files', f.path));
+      final bytes = await f.readAsBytes();
+      final filename = f.path.split('/').last.split('\\').last;
+      req.files.add(
+        http.MultipartFile.fromBytes(
+          'files',
+          bytes,
+          filename: filename.isEmpty ? 'upload.jpg' : filename,
+        ),
+      );
     }
 
     final streamed = await req.send().timeout(_uploadTimeout);
@@ -141,11 +150,11 @@ class CoffeeApi {
 
   static Future<CoffeeReading> uploadPhotos({
     required String readingId,
-    List<File>? files,
-    List<File>? imageFiles,
+    List<XFile>? files,
+    List<XFile>? imageFiles,
     String? deviceId,
   }) {
-    final chosen = (files != null && files.isNotEmpty) ? files : (imageFiles ?? <File>[]);
+    final chosen = (files != null && files.isNotEmpty) ? files : (imageFiles ?? <XFile>[]);
     if (chosen.isEmpty) {
       throw ApiException(
         statusCode: 0,

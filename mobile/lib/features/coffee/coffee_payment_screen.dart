@@ -6,10 +6,11 @@ import '../../services/iap_service.dart';
 import '../../services/product_catalog.dart';
 import '../../services/coffee_api.dart';
 
-import 'coffee_loading_screen.dart';
+import '../../models/coffee_reading.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/gradient_button.dart';
 import '../../widgets/mystic_scaffold.dart';
+import 'coffee_result_screen.dart';
 
 class CoffeePaymentScreen extends StatefulWidget {
   final String readingId;
@@ -22,13 +23,52 @@ class CoffeePaymentScreen extends StatefulWidget {
 class _CoffeePaymentScreenState extends State<CoffeePaymentScreen> {
   bool _loading = false;
   String? _lastPaymentId;
-  String _phase = 'idle';
+  CoffeeReading? _reading;
+  bool _loadingReading = true;
+  String? _loadError;
 
   static const bool debugUseStoreIap = true;
 
+  @override
+  void initState() {
+    super.initState();
+    _loadReading();
+  }
+
+  bool _isReadyLockedOrDone(CoffeeReading? r) {
+    if (r == null) return false;
+    if (r.hasResult) return true;
+    final s = r.status.toLowerCase().trim();
+    return s == 'completed' || s == 'done' || s == 'ready_locked' || s == 'ready_unlocked';
+  }
+
+  Future<void> _loadReading() async {
+    setState(() {
+      _loadingReading = true;
+      _loadError = null;
+    });
+    try {
+      final deviceId = await DeviceIdService.getOrCreate();
+      final r = await CoffeeApi.detail(readingId: widget.readingId, deviceId: deviceId);
+      if (!mounted) return;
+      setState(() {
+        _reading = r;
+        _loadingReading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loadError = e.toString();
+        _loadingReading = false;
+      });
+    }
+  }
+
   void _fireGenerate() {
-    DeviceIdService.getOrCreate().then((deviceId) {
-      CoffeeApi.generate(readingId: widget.readingId, deviceId: deviceId).catchError((_) {});
+    DeviceIdService.getOrCreate().then((deviceId) async {
+      try {
+        await CoffeeApi.generate(readingId: widget.readingId, deviceId: deviceId);
+      } catch (_) {}
     });
   }
 
@@ -51,9 +91,16 @@ class _CoffeePaymentScreenState extends State<CoffeePaymentScreen> {
   }
 
   Future<void> _pay() async {
+    if (_loading) return;
+    if (!_isReadyLockedOrDone(_reading)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Yorum henüz hazır değil. Hazır olduğunda bu ekrandan kilidi açabilirsin.')),
+      );
+      return;
+    }
+
     setState(() {
       _loading = true;
-      _phase = 'paying';
     });
     try {
       final deviceId = await DeviceIdService.getOrCreate();
@@ -83,8 +130,28 @@ class _CoffeePaymentScreenState extends State<CoffeePaymentScreen> {
 
       _fireGenerate();
       if (!mounted) return;
+
+      CoffeeReading? finalReading;
+      for (var i = 0; i < 8; i++) {
+        try {
+          final r = await CoffeeApi.detail(readingId: widget.readingId, deviceId: deviceId);
+          final t = (r.comment ?? '').trim();
+          if (t.isNotEmpty) {
+            finalReading = r;
+            break;
+          }
+        } catch (_) {}
+        await Future.delayed(const Duration(seconds: 2));
+      }
+
+      final finalText = (finalReading?.comment ?? '').trim();
+      if (finalText.isEmpty) {
+        throw Exception("Yorum henüz açılmadı. Lütfen Profil > Benim Okumalarım'dan tekrar deneyin.");
+      }
+
+      if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => CoffeeLoadingScreen(readingId: widget.readingId)),
+        MaterialPageRoute(builder: (_) => CoffeeResultScreen(resultText: finalText)),
         (route) => false,
       );
     } catch (e) {
@@ -93,10 +160,11 @@ class _CoffeePaymentScreenState extends State<CoffeePaymentScreen> {
         SnackBar(content: Text('Ödeme/Yorum hatası: $e')),
       );
     } finally {
-      if (mounted) setState(() {
-        _loading = false;
-        _phase = 'idle';
-      });
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
     }
   }
 
@@ -114,7 +182,34 @@ class _CoffeePaymentScreenState extends State<CoffeePaymentScreen> {
                 children: [
                   const Text('Kahve Falı', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
                   const SizedBox(height: 10),
-                  const Text('Falını başlatmak için ödeme adımını tamamla.'),
+                  const Text('Yorumun hazır olduğunda bu ekrandan kilidi açabilirsin.'),
+                  const SizedBox(height: 10),
+                  if (_loadingReading)
+                    Row(
+                      children: [
+                        const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Yorum durumu kontrol ediliyor...',
+                          style: TextStyle(color: Colors.white.withOpacity(0.80), fontSize: 12),
+                        ),
+                      ],
+                    )
+                  else if (_loadError != null)
+                    Text(
+                      'Yorum durumu alınamadı. Profil > Benim Okumalarım’dan kontrol et.',
+                      style: TextStyle(color: Colors.orange.shade200, fontSize: 12),
+                    )
+                  else if (!_isReadyLockedOrDone(_reading))
+                    Text(
+                      'Yorum henüz hazırlanıyor. Hazır olduğunda bildirim alırsın.',
+                      style: TextStyle(color: Colors.white.withOpacity(0.80), fontSize: 12),
+                    )
+                  else
+                    Text(
+                      'Yorumun hazır 🎉 Ödeme ile tamamını açabilirsin.',
+                      style: TextStyle(color: Colors.lightGreenAccent.shade100, fontSize: 12),
+                    ),
                   const SizedBox(height: 12),
                   const Text('Tutar: 49 ₺', style: TextStyle(fontWeight: FontWeight.w900)),
                   const SizedBox(height: 4),
@@ -150,7 +245,7 @@ class _CoffeePaymentScreenState extends State<CoffeePaymentScreen> {
             const SizedBox(height: 18),
             GradientButton(
               text: _loading ? 'Ödeme işleniyor...' : 'Ödemeyi Tamamla ✨',
-              onPressed: _loading ? null : _pay,
+              onPressed: (_loading || _loadingReading) ? null : _pay,
             ),
           ],
         ),

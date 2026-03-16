@@ -11,7 +11,7 @@ import '../../services/profile_store.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/gradient_button.dart';
 import '../../widgets/mystic_scaffold.dart';
-import 'hand_payment_screen.dart';
+import 'hand_loading_screen.dart';
 
 class HandScreen extends StatefulWidget {
   const HandScreen({super.key});
@@ -191,7 +191,7 @@ class _HandScreenState extends State<HandScreen> {
       if (!mounted) return;
 
       Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => HandPaymentScreen(readingId: reading.id)),
+        MaterialPageRoute(builder: (_) => HandLoadingScreen(readingId: reading.id)),
       );
     } catch (e) {
       if (!mounted) return;
@@ -377,7 +377,7 @@ class _HandScreenState extends State<HandScreen> {
             ),
             const SizedBox(height: 18),
             GradientButton(
-              text: _loading ? 'Yükleniyor...' : 'Fal Başlat (Ödeme Adımına Geç)',
+              text: _loading ? 'Yükleniyor...' : 'Devam Et',
               onPressed: _loading ? null : _submit,
             ),
           ],

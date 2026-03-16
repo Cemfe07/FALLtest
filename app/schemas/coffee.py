@@ -37,6 +37,7 @@ class CoffeeReading(BaseModel):
     photos: List[str] = Field(default_factory=list)
 
     status: CoffeeStatus
+    has_result: bool = False
     comment: Optional[str] = None
     result_text: Optional[str] = None
 

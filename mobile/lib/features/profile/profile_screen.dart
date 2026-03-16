@@ -6,12 +6,17 @@ import '../../services/device_id_service.dart';
 import '../../services/profile_api.dart';
 import '../../services/profile_store.dart';
 import '../../widgets/mystic_scaffold.dart';
+import '../coffee/coffee_payment_screen.dart';
 import '../coffee/coffee_result_screen.dart';
+import '../hand/hand_payment_screen.dart';
 import '../hand/hand_result_screen.dart';
 import '../numerology/numerology_payment_screen.dart';
 import '../numerology/numerology_result_screen.dart';
+import '../personality/personality_payment_screen.dart';
 import '../personality/personality_result_screen.dart';
+import '../synastry/synastry_payment_screen.dart';
 import '../synastry/synastry_result_screen.dart';
+import '../tarot/tarot_payment_screen.dart';
 import 'profile_legal_screen.dart';
 import 'reading_detail_loader_screen.dart';
 
@@ -176,6 +181,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (r.id.trim().isEmpty) return;
     final hasResult = r.hasResult || (r.resultText ?? '').trim().isNotEmpty || _isReadyLockedOrDone(r);
 
+    if (r.type == 'coffee' && hasResult && !r.isPaid) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => CoffeePaymentScreen(readingId: r.id),
+        ),
+      );
+      return;
+    }
+    if (r.type == 'coffee' && !hasResult) {
+      _toast("Kahve falı yorumun hazırlanıyor. Hazır olduğunda buradan açabileceksin.");
+      return;
+    }
+
     // Numeroloji için kilit akışı: yorum hazır + ödenmemiş ise önce ödeme ekranına git.
     if (r.type == 'numerology' && hasResult && !r.isPaid) {
       Navigator.of(context).push(
@@ -192,6 +210,65 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
     if (r.type == 'numerology' && !hasResult) {
       _toast("Numeroloji yorumun hazırlanıyor. Hazır olduğunda buradan açabileceksin.");
+      return;
+    }
+    if (r.type == 'hand' && hasResult && !r.isPaid) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => HandPaymentScreen(readingId: r.id),
+        ),
+      );
+      return;
+    }
+    if (r.type == 'hand' && !hasResult) {
+      _toast("El falı yorumun hazırlanıyor. Hazır olduğunda buradan açabileceksin.");
+      return;
+    }
+    if (r.type == 'tarot' && hasResult && !r.isPaid) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => TarotPaymentScreen(readingId: r.id),
+        ),
+      );
+      return;
+    }
+    if (r.type == 'tarot' && !hasResult) {
+      _toast("Tarot yorumun hazırlanıyor. Hazır olduğunda buradan açabileceksin.");
+      return;
+    }
+    if (r.type == 'personality' && hasResult && !r.isPaid) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => PersonalityPaymentScreen(
+            readingId: r.id,
+            name: '',
+            birthDate: '',
+            birthTime: '',
+            birthCity: '',
+            birthCountry: 'TR',
+            question: r.title,
+          ),
+        ),
+      );
+      return;
+    }
+    if (r.type == 'personality' && !hasResult) {
+      _toast("Kişilik analizi yorumun hazırlanıyor. Hazır olduğunda buradan açabileceksin.");
+      return;
+    }
+    if (r.type == 'synastry' && hasResult && !r.isPaid) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => SynastryPaymentScreen(
+            readingId: r.id,
+            title: r.title.isNotEmpty ? r.title : 'Sinastri (Aşk Uyumu)',
+          ),
+        ),
+      );
+      return;
+    }
+    if (r.type == 'synastry' && !hasResult) {
+      _toast("Sinastri yorumun hazırlanıyor. Hazır olduğunda buradan açabileceksin.");
       return;
     }
 

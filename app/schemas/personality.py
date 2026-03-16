@@ -38,6 +38,7 @@ class PersonalityReading(BaseModel):
     question: Optional[str]
 
     status: str
+    has_result: bool = False
     result_text: Optional[str]
 
     is_paid: bool

@@ -346,7 +346,7 @@ class _NumerologyFormScreenState extends State<NumerologyFormScreen> {
                   onPressed: _loading ? null : _continueToPayment,
                   child: _loading
                       ? const SizedBox(height: 22, width: 22, child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Text("Devam → Ödeme", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
+                      : const Text("Devam Et", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
                 ),
               ),
             ),

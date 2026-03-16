@@ -7,6 +7,7 @@ class CoffeeReading {
   final String question;
   final List<String> photos;
   final String status;
+  final bool hasResult;
 
   // ✅ yorum
   final String? comment;
@@ -23,6 +24,7 @@ class CoffeeReading {
     required this.question,
     required this.photos,
     required this.status,
+    required this.hasResult,
     required this.comment,
     required this.rating,
     required this.paymentRef,
@@ -46,6 +48,7 @@ class CoffeeReading {
       question: (j['question'] ?? '').toString(),
       photos: photos,
       status: (j['status'] ?? '').toString(),
+      hasResult: (j['has_result'] ?? false) == true,
       comment: comment,
       rating: j['rating'] == null ? null : int.tryParse(j['rating'].toString()),
       paymentRef: (j['payment_ref'] ?? j['paymentRef'])?.toString(),

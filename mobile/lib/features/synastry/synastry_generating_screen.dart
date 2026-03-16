@@ -4,11 +4,18 @@ import 'package:flutter/material.dart';
 
 import '../../services/device_id_service.dart';
 import '../../services/synastry_api.dart';
+import '../profile/profile_screen.dart';
+import 'synastry_payment_screen.dart';
 import 'synastry_result_screen.dart';
 
 class SynastryGeneratingScreen extends StatefulWidget {
   final String readingId;
-  const SynastryGeneratingScreen({super.key, required this.readingId});
+  final String title;
+  const SynastryGeneratingScreen({
+    super.key,
+    required this.readingId,
+    this.title = 'Sinastri (Aşk Uyumu)',
+  });
 
   @override
   State<SynastryGeneratingScreen> createState() => _SynastryGeneratingScreenState();
@@ -33,6 +40,7 @@ class _SynastryGeneratingScreenState extends State<SynastryGeneratingScreen> {
 
   static const int _warnSec = 18;
   static const int _hardWarnSec = 40;
+  static const int _fallbackToProfileSec = 120;
 
   @override
   void initState() {
@@ -156,6 +164,19 @@ class _SynastryGeneratingScreenState extends State<SynastryGeneratingScreen> {
 
   Future<void> _pollOnce() async {
     _elapsed += _pollSec;
+    if (_elapsed >= _fallbackToProfileSec) {
+      _timer?.cancel();
+      if (!mounted) return;
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(
+          builder: (_) => const ProfileScreen(
+            openWithMessage: "Yorumunuz arka planda hazırlanıyor. 'Benim Okumalarım' listesinde görünecek; aşağı çekerek yenileyebilirsiniz.",
+          ),
+        ),
+        (route) => false,
+      );
+      return;
+    }
 
     try {
       final s = await _api.getStatus(
@@ -168,14 +189,15 @@ class _SynastryGeneratingScreenState extends State<SynastryGeneratingScreen> {
       final st = _norm(s.status);
       final paid = (s.isPaid == true);
       final hasText = (s.resultText ?? '').trim().isNotEmpty;
+      final ready = s.hasResult || _isDoneStatus(st);
 
       setState(() {
         _status = st.isEmpty ? 'processing' : st;
         _error = s.error;
       });
 
-      // ✅ bittiyse result ekranı
-      if (_isDoneStatus(st) && hasText) {
+      // Ödeme yapılmış ve sonuç açılmışsa result ekranı
+      if (paid && hasText) {
         _timer?.cancel();
         Navigator.pushReplacement(
           context,
@@ -183,6 +205,21 @@ class _SynastryGeneratingScreenState extends State<SynastryGeneratingScreen> {
             builder: (_) => SynastryResultScreen(
               readingId: widget.readingId,
               resultText: s.resultText ?? '',
+            ),
+          ),
+        );
+        return;
+      }
+
+      // Yorum hazırsa (kilitli) ödeme ekranına geç
+      if (!paid && ready) {
+        _timer?.cancel();
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => SynastryPaymentScreen(
+              readingId: widget.readingId,
+              title: widget.title,
             ),
           ),
         );
@@ -199,10 +236,10 @@ class _SynastryGeneratingScreenState extends State<SynastryGeneratingScreen> {
       // paid=true iken paid/started/processing durumlarında 1 kez tetikle
       // (senin "sonsuz bekleme" bug'ının sebebi processing'i tetiklememendi)
       final shouldTriggerGenerate =
-          paid && (st == 'paid' || st == 'started' || st == 'processing');
+          !ready && (st == 'paid' || st == 'started' || st == 'processing');
 
       // processing -> paid geri dönerse bir kez daha dene
-      final cameBackToPaid = (_lastStatus == 'processing' && st == 'paid');
+      final cameBackToPaid = (_lastStatus == 'processing' && (st == 'paid' || st == 'started'));
 
       if (shouldTriggerGenerate && (!_generateTriggered || cameBackToPaid)) {
         _generateTriggered = true;
@@ -245,7 +282,7 @@ class _SynastryGeneratingScreenState extends State<SynastryGeneratingScreen> {
     final sub = isError
         ? 'Tekrar deneyebilirsin.'
         : (hardWarn
-            ? 'Beklenenden uzun sürdü. Ekranda kalırsan otomatik açılacak. Gerekirse tekrar dene.'
+            ? 'Beklenenden uzun sürdü. Yorum hazır olunca ödeme ekranına geçeceksin.'
             : (warn ? 'Bu analiz biraz uzun sürebilir. Birazdan hazır olacak.' : 'Genelde birkaç saniye içinde hazır olur.'));
 
     return Scaffold(

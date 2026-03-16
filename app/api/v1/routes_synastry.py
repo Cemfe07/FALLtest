@@ -23,6 +23,7 @@ def _mask_result_if_unpaid(reading: Dict[str, Any]) -> Dict[str, Any]:
     if not reading:
         return reading
     out = dict(reading)
+    out["has_result"] = bool((out.get("result_text") or "").strip())
     if not out.get("is_paid"):
         out["result_text"] = None
     return out
@@ -125,7 +126,8 @@ def generate(reading_id: str, session: Session = Depends(get_session)):
                 pass
         return _mask_result_if_unpaid(updated)
     except Exception as e:
-        synastry_repo.set_status(session=session, reading_id=reading_id, status="paid")
+        fallback_status = "paid" if reading.get("is_paid") else "started"
+        synastry_repo.set_status(session=session, reading_id=reading_id, status=fallback_status)
         raise HTTPException(status_code=500, detail=f"Synastry üretilemedi: {e}")
 
 
