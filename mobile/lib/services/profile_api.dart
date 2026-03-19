@@ -48,12 +48,12 @@ class ProfileApi {
     return ProfileMe.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
   }
 
-  /// Son N okumayı getirir (tüm türler karışık, tarihe göre azalan). Limit en fazla 5.
+  /// Son N okumayı getirir (tüm türler karışık, tarihe göre azalan).
   static Future<ProfileHistoryResponse> getHistory({
     required String deviceId,
-    int limit = 5,
+    int limit = 20,
   }) async {
-    final limitClamped = limit.clamp(1, 20);
+    final limitClamped = limit.clamp(1, 100);
     final res = await http
         .get(
           Uri.parse('${ApiBase.baseUrl}/profile/history?limit=$limitClamped&offset=0'),

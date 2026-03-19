@@ -6,7 +6,7 @@ import threading
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from app.core.device import get_device_id
 from app.db import engine, get_session
@@ -124,6 +124,26 @@ def _wanted_count(spread_type: str) -> int:
     raise HTTPException(status_code=400, detail=f"Geçersiz spread_type: {spread_type}")
 
 
+def _ensure_no_blocking_locked_reading(session: Session, device_id: str) -> None:
+    stmt = (
+        select(TarotReadingDB.id)
+        .where(
+            TarotReadingDB.device_id == device_id,
+            TarotReadingDB.is_paid == False,  # noqa: E712
+            TarotReadingDB.result_text.is_not(None),
+            TarotReadingDB.result_text != "",
+        )
+        .order_by(TarotReadingDB.created_at.desc())
+        .limit(1)
+    )
+    existing_id = session.exec(stmt).first()
+    if existing_id:
+        raise HTTPException(
+            status_code=409,
+            detail="Bu bölümde kilidi açılmamış hazır bir yorumunuz var. Yeni yorumdan önce mevcut yorumu açın.",
+        )
+
+
 @router.post("/start", response_model=TarotReading)
 async def start(
     req: TarotStartRequest,
@@ -131,6 +151,7 @@ async def start(
     device_id: str = Depends(get_device_id),
 ):
     _wanted_count(req.spread_type)
+    _ensure_no_blocking_locked_reading(session, device_id)
 
     obj = TarotReadingDB(
         id=str(uuid4()),

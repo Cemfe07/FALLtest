@@ -4,10 +4,11 @@ from uuid import uuid4
 from typing import Any, Dict
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import Response
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from app.db import get_session
 from app.core.device import get_device_id
+from app.models.synastry_db import SynastryReadingDB
 from app.schemas.synastry import SynastryStartRequest, SynastryMarkPaidRequest, SynastryRatingRequest
 from app.repositories.synastry_repo import synastry_repo
 
@@ -16,6 +17,26 @@ from app.services.pdf_service import build_synastry_pdf_bytes
 
 
 router = APIRouter(prefix="/synastry", tags=["synastry"])
+
+
+def _ensure_no_blocking_locked_reading(session: Session, device_id: str) -> None:
+    stmt = (
+        select(SynastryReadingDB.id)
+        .where(
+            SynastryReadingDB.device_id == device_id,
+            SynastryReadingDB.is_paid == False,  # noqa: E712
+            SynastryReadingDB.result_text.is_not(None),
+            SynastryReadingDB.result_text != "",
+        )
+        .order_by(SynastryReadingDB.created_at.desc())
+        .limit(1)
+    )
+    existing_id = session.exec(stmt).first()
+    if existing_id:
+        raise HTTPException(
+            status_code=409,
+            detail="Bu bölümde kilidi açılmamış hazır bir yorumunuz var. Yeni yorumdan önce mevcut yorumu açın.",
+        )
 
 
 def _mask_result_if_unpaid(reading: Dict[str, Any]) -> Dict[str, Any]:
@@ -35,6 +56,8 @@ def start(
     session: Session = Depends(get_session),
     device_id: str = Depends(get_device_id),
 ):
+    _ensure_no_blocking_locked_reading(session, device_id)
+
     try:
         reading = synastry_repo.create(
             session=session,

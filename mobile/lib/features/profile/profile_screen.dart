@@ -46,7 +46,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   /// İlk kez store’dan form doldurma (ya da dirty değilken)
   bool _appliedOnce = false;
 
-  /// Benim Okumalarım: son 5 okuma
+  /// Benim Okumalarım: daha geniş tarihçe (kilitli kayıtlar görünür kalsın)
   List<ProfileReadingItem>? _readings;
   bool _readingsLoading = false;
   String? _readingsError;
@@ -57,6 +57,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _isReadyLockedOrDone(ProfileReadingItem r) {
     final s = r.status.toLowerCase().trim();
     return s == 'completed' || s == 'done' || s == 'ready_locked' || s == 'ready_unlocked';
+  }
+
+  bool _hasResult(ProfileReadingItem r) {
+    return r.hasResult || (r.resultText ?? '').trim().isNotEmpty || _isReadyLockedOrDone(r);
   }
 
   @override
@@ -118,13 +122,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
     try {
       final deviceId = await DeviceIdService.getOrCreate();
-      final res = await ProfileApi.getHistory(deviceId: deviceId, limit: 5);
+      final res = await ProfileApi.getHistory(deviceId: deviceId, limit: 50);
       if (!mounted) return;
       final newItems = res.items;
       final nowPending = <String>{};
       bool anyJustReady = false;
       for (final r in newItems) {
-        final hasResult = r.hasResult || (r.resultText ?? '').trim().isNotEmpty || _isReadyLockedOrDone(r);
+        final hasResult = _hasResult(r);
         if (!hasResult) {
           nowPending.add(r.id);
         } else if (hasResult && _pendingReadingIds.contains(r.id)) {
@@ -179,7 +183,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   void _openReading(ProfileReadingItem r) {
     if (r.id.trim().isEmpty) return;
-    final hasResult = r.hasResult || (r.resultText ?? '').trim().isNotEmpty || _isReadyLockedOrDone(r);
+    final hasResult = _hasResult(r);
 
     if (r.type == 'coffee' && hasResult && !r.isPaid) {
       Navigator.of(context).push(
@@ -425,6 +429,87 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  Widget _readingTile(ProfileReadingItem r) {
+    final dateStr = r.createdAt != null ? "${r.createdAt!.day}.${r.createdAt!.month}.${r.createdAt!.year}" : null;
+    const previewLen = 120;
+    final hasResult = _hasResult(r);
+    final preview = hasResult
+        ? ((r.resultText ?? '').isNotEmpty
+            ? ((r.resultText!.length <= previewLen) ? r.resultText! : '${r.resultText!.substring(0, previewLen)}...')
+            : null)
+        : null;
+    final waitingComment = !hasResult;
+    final readyLocked = hasResult && !r.isPaid;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: InkWell(
+        onTap: () => _openReading(r),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(_iconForType(r.type), color: const Color(0xFFF5C361), size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      r.title.isNotEmpty ? r.title : r.typeLabel,
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 14),
+                    ),
+                    if (dateStr != null) Text(dateStr, style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 12)),
+                    if (waitingComment) ...[
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.amber.shade200),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Yorumunuz hazırlanıyor... Hazır olduğunda buradan ve bildirimle görebileceksiniz.',
+                              style: TextStyle(color: Colors.amber.shade200, fontSize: 12, height: 1.35, fontStyle: FontStyle.italic),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ] else if (readyLocked) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        'Yorumunuz hazır. Kilidi açıp tamamını okuyabilirsiniz.',
+                        style: TextStyle(color: Colors.lightGreenAccent.shade100, fontSize: 12, height: 1.35, fontStyle: FontStyle.italic),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ] else if (preview != null) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        preview,
+                        style: TextStyle(color: Colors.white.withOpacity(0.85), fontSize: 12, height: 1.35),
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right, color: Colors.white54, size: 22),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _card({required String title, required Widget child}) {
     return Container(
       width: double.infinity,
@@ -658,84 +743,50 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                             style: TextStyle(color: Colors.white.withOpacity(0.80), fontSize: 13, height: 1.3),
                                           ),
                                         )
-                                      : Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: _readings!.take(5).map((r) {
-                                            final dateStr = r.createdAt != null
-                                                ? "${r.createdAt!.day}.${r.createdAt!.month}.${r.createdAt!.year}"
-                                                : null;
-                                            const previewLen = 120;
-                                            final hasResult = r.hasResult || (r.resultText != null && r.resultText!.isNotEmpty) || _isReadyLockedOrDone(r);
-                                            final preview = hasResult
-                                                ? ((r.resultText ?? '').isNotEmpty
-                                                    ? ((r.resultText!.length <= previewLen)
-                                                        ? r.resultText!
-                                                        : '${r.resultText!.substring(0, previewLen)}...')
-                                                    : null)
-                                                : null;
-                                            final waitingComment = !hasResult;
-                                            final readyLocked = hasResult && !r.isPaid;
-                                            return Padding(
-                                              padding: const EdgeInsets.only(bottom: 10),
-                                              child: InkWell(
-                                                onTap: () => _openReading(r),
-                                                borderRadius: BorderRadius.circular(12),
-                                                child: Padding(
-                                                  padding: const EdgeInsets.symmetric(vertical: 6),
-                                                  child: Row(
-                                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                                    children: [
-                                                      Icon(_iconForType(r.type), color: const Color(0xFFF5C361), size: 20),
-                                                      const SizedBox(width: 10),
-                                                      Expanded(
-                                                        child: Column(
-                                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                                          children: [
-                                                            Text(r.title.isNotEmpty ? r.title : r.typeLabel, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 14)),
-                                                            if (dateStr != null)
-                                                              Text(dateStr, style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 12)),
-                                                            if (waitingComment) ...[
-                                                              const SizedBox(height: 6),
-                                                              Row(
-                                                                children: [
-                                                                  SizedBox(
-                                                                    width: 14,
-                                                                    height: 14,
-                                                                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.amber.shade200),
-                                                                  ),
-                                                                  const SizedBox(width: 8),
-                                                                  Expanded(
-                                                                    child: Text(
-                                                                      'Yorumunuz hazırlanıyor... Hazır olduğunda buradan ve bildirimle görebileceksiniz.',
-                                                                      style: TextStyle(color: Colors.amber.shade200, fontSize: 12, height: 1.35, fontStyle: FontStyle.italic),
-                                                                      maxLines: 2,
-                                                                      overflow: TextOverflow.ellipsis,
-                                                                    ),
-                                                                  ),
-                                                                ],
-                                                              ),
-                                                            ] else if (readyLocked) ...[
-                                                              const SizedBox(height: 6),
-                                                              Text(
-                                                                'Yorumunuz hazır. Kilidi açıp tamamını okuyabilirsiniz.',
-                                                                style: TextStyle(color: Colors.lightGreenAccent.shade100, fontSize: 12, height: 1.35, fontStyle: FontStyle.italic),
-                                                                maxLines: 2,
-                                                                overflow: TextOverflow.ellipsis,
-                                                              ),
-                                                            ] else if (preview != null) ...[
-                                                              const SizedBox(height: 6),
-                                                              Text(preview, style: TextStyle(color: Colors.white.withOpacity(0.85), fontSize: 12, height: 1.35), maxLines: 3, overflow: TextOverflow.ellipsis),
-                                                            ],
-                                                          ],
-                                                        ),
-                                                      ),
-                                                      const Icon(Icons.chevron_right, color: Colors.white54, size: 22),
-                                                    ],
+                                      : Builder(
+                                          builder: (_) {
+                                            final all = _readings!;
+                                            final locked = all.where((r) => !r.isPaid).toList();
+                                            final unlocked = all.where((r) => r.isPaid).toList();
+                                            return Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  "Kilidi Açılmamış (${locked.length})",
+                                                  style: TextStyle(
+                                                    color: Colors.amber.shade200,
+                                                    fontSize: 13,
+                                                    fontWeight: FontWeight.w800,
                                                   ),
                                                 ),
-                                              ),
+                                                const SizedBox(height: 8),
+                                                if (locked.isEmpty)
+                                                  Text(
+                                                    "Kilidi açılmamış okuma yok.",
+                                                    style: TextStyle(color: Colors.white.withOpacity(0.70), fontSize: 12),
+                                                  )
+                                                else
+                                                  ...locked.map(_readingTile),
+                                                const SizedBox(height: 10),
+                                                Text(
+                                                  "Kilidi Açılmış (${unlocked.length})",
+                                                  style: TextStyle(
+                                                    color: Colors.lightGreenAccent.shade100,
+                                                    fontSize: 13,
+                                                    fontWeight: FontWeight.w800,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 8),
+                                                if (unlocked.isEmpty)
+                                                  Text(
+                                                    "Henüz kilidi açılmış okuma yok.",
+                                                    style: TextStyle(color: Colors.white.withOpacity(0.70), fontSize: 12),
+                                                  )
+                                                else
+                                                  ...unlocked.map(_readingTile),
+                                              ],
                                             );
-                                          }).toList(),
+                                          },
                                         ),
                         ),
                         const SizedBox(height: 12),

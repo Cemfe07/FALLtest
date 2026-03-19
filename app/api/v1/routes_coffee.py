@@ -6,7 +6,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
 from pydantic import BaseModel
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from app.db import get_session
 from app.core.config import settings
@@ -36,6 +36,26 @@ router = APIRouter(prefix="/coffee", tags=["coffee"])
 
 class RatingRequest(BaseModel):
     rating: int
+
+
+def _ensure_no_blocking_locked_reading(session: Session, device_id: str) -> None:
+    stmt = (
+        select(CoffeeReadingDB.id)
+        .where(
+            CoffeeReadingDB.device_id == device_id,
+            CoffeeReadingDB.is_paid == False,  # noqa: E712
+            CoffeeReadingDB.result_text.is_not(None),
+            CoffeeReadingDB.result_text != "",
+        )
+        .order_by(CoffeeReadingDB.created_at.desc())
+        .limit(1)
+    )
+    existing_id = session.exec(stmt).first()
+    if existing_id:
+        raise HTTPException(
+            status_code=409,
+            detail="Bu bölümde kilidi açılmamış hazır bir yorumunuz var. Yeni yorumdan önce mevcut yorumu açın.",
+        )
 
 
 def _get_or_404_owner(
@@ -99,6 +119,8 @@ async def start(
     session: Session = Depends(get_session),
     device_id: str = Depends(get_device_id),
 ):
+    _ensure_no_blocking_locked_reading(session, device_id)
+
     db_obj = CoffeeReadingDB(
         topic=req.topic,
         question=req.question,

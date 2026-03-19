@@ -4,16 +4,37 @@ from __future__ import annotations
 from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from app.core.device import get_device_id
 from app.db import get_session
+from app.models.numerology_db import NumerologyReadingDB
 from app.schemas.numerology import NumerologyStartIn, NumerologyReadingOut, MarkPaidIn
 from app.repositories.numerology_repo import NumerologyRepo
 from app.services.openai_service import generate_numerology_reading
 
 router = APIRouter(prefix="/numerology", tags=["numerology"])
 _repo = NumerologyRepo()
+
+
+def _ensure_no_blocking_locked_reading(session: Session, device_id: str) -> None:
+    stmt = (
+        select(NumerologyReadingDB.id)
+        .where(
+            NumerologyReadingDB.device_id == device_id,
+            NumerologyReadingDB.is_paid == False,  # noqa: E712
+            NumerologyReadingDB.result_text.is_not(None),
+            NumerologyReadingDB.result_text != "",
+        )
+        .order_by(NumerologyReadingDB.created_at.desc())
+        .limit(1)
+    )
+    existing_id = session.exec(stmt).first()
+    if existing_id:
+        raise HTTPException(
+            status_code=409,
+            detail="Bu bölümde kilidi açılmamış hazır bir yorumunuz var. Yeni yorumdan önce mevcut yorumu açın.",
+        )
 
 
 def _as_dict(obj: Any) -> Dict[str, Any]:
@@ -83,6 +104,7 @@ def start(
       3) /numerology/{id}/generate -> yorum üret (processing -> completed)
     """
     try:
+        _ensure_no_blocking_locked_reading(session, device_id)
         created = _repo.create(
             session=session,
             name=payload.name,

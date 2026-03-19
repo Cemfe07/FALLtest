@@ -5,15 +5,36 @@ from uuid import uuid4
 from typing import Any, Dict
 
 from fastapi import APIRouter, HTTPException, Depends
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from app.db import get_session
 from app.core.device import get_device_id
+from app.models.birthchart_db import BirthChartReadingDB
 from app.schemas.birthchart import BirthChartStartRequest
 from app.repositories.birthchart_repo import birthchart_repo
 from app.services.birthchart_service import generate_birthchart_reading
 
 router = APIRouter(prefix="/birthchart", tags=["birthchart"])
+
+
+def _ensure_no_blocking_locked_reading(session: Session, device_id: str) -> None:
+    stmt = (
+        select(BirthChartReadingDB.id)
+        .where(
+            BirthChartReadingDB.device_id == device_id,
+            BirthChartReadingDB.is_paid == False,  # noqa: E712
+            BirthChartReadingDB.result_text.is_not(None),
+            BirthChartReadingDB.result_text != "",
+        )
+        .order_by(BirthChartReadingDB.created_at.desc())
+        .limit(1)
+    )
+    existing_id = session.exec(stmt).first()
+    if existing_id:
+        raise HTTPException(
+            status_code=409,
+            detail="Bu bölümde kilidi açılmamış hazır bir yorumunuz var. Yeni yorumdan önce mevcut yorumu açın.",
+        )
 
 
 @router.post("/start")
@@ -22,6 +43,8 @@ def start_birthchart(
     session: Session = Depends(get_session),
     device_id: str = Depends(get_device_id),
 ):
+    _ensure_no_blocking_locked_reading(session, device_id)
+
     reading_id = str(uuid4())
     reading = birthchart_repo.create(
         session=session,
@@ -71,6 +94,7 @@ def _mask_result_if_unpaid(reading: Dict[str, Any]) -> Dict[str, Any]:
     if not reading:
         return reading
     out = dict(reading)
+    out["has_result"] = bool((out.get("result_text") or "").strip())
     if not out.get("is_paid"):
         out["result_text"] = None
     return out

@@ -5,9 +5,10 @@ from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Depends, Header, BackgroundTasks
 from fastapi.responses import Response
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from app.db import get_session, engine
+from app.models.personality_db import PersonalityReadingDB
 from app.schemas.personality import (
     PersonalityStartRequest,
     PersonalityMarkPaidRequest,
@@ -21,6 +22,29 @@ router = APIRouter(
     prefix="/personality",
     tags=["Personality"],
 )
+
+
+def _ensure_no_blocking_locked_reading(session: Session, device_id: Optional[str]) -> None:
+    did = (device_id or "").strip()
+    if not did:
+        return
+    stmt = (
+        select(PersonalityReadingDB.id)
+        .where(
+            PersonalityReadingDB.device_id == did,
+            PersonalityReadingDB.is_paid == False,  # noqa: E712
+            PersonalityReadingDB.result_text.is_not(None),
+            PersonalityReadingDB.result_text != "",
+        )
+        .order_by(PersonalityReadingDB.created_at.desc())
+        .limit(1)
+    )
+    existing_id = session.exec(stmt).first()
+    if existing_id:
+        raise HTTPException(
+            status_code=409,
+            detail="Bu bölümde kilidi açılmamış hazır bir yorumunuz var. Yeni yorumdan önce mevcut yorumu açın.",
+        )
 
 
 def _device_guard(reading: dict, device_id: Optional[str]) -> None:
@@ -64,6 +88,8 @@ def start_personality(
     session: Session = Depends(get_session),
     x_device_id: Optional[str] = Header(default=None, alias="X-Device-Id"),
 ):
+    _ensure_no_blocking_locked_reading(session, x_device_id)
+
     reading_id = str(uuid4())
 
     reading = personality_repo.create(

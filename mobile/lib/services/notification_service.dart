@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -10,48 +9,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api_base.dart';
 import 'device_id_service.dart';
-import '../firebase_options.dart';
 
 const String _keyPromptShown = 'notification_prompt_shown';
-
-Future<void>? _firebaseInitFuture;
-
-Future<void> _ensureFirebaseInitialized() async {
-  if (kIsWeb) return;
-  final inFlight = _firebaseInitFuture;
-  if (inFlight != null) {
-    await inFlight;
-    return;
-  }
-  _firebaseInitFuture = _initializeFirebaseSafely();
-  try {
-    await _firebaseInitFuture;
-  } finally {
-    _firebaseInitFuture = null;
-  }
-}
-
-Future<void> _initializeFirebaseSafely() async {
-  // Default app zaten konfigüre ise tekrar configure çağırma.
-  if (Firebase.apps.isNotEmpty) return;
-  try {
-    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  } catch (e) {
-    final msg = e.toString().toLowerCase();
-    // iOS duplicate configure koruması
-    if (msg.contains('already exists') ||
-        msg.contains('duplicate app') ||
-        msg.contains('default app has already been configured')) {
-      return;
-    }
-    rethrow;
-  }
-}
 
 /// Arka planda gelen FCM mesajı (isolate'ta çalışır).
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  await _ensureFirebaseInitialized();
   if (message.notification != null) {
     await NotificationService._showLocalNotification(
       title: message.notification!.title ?? 'LunAura',
@@ -84,7 +47,6 @@ class NotificationService {
       return;
     }
     try {
-      await _ensureFirebaseInitialized();
       FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
       const android = AndroidInitializationSettings('@mipmap/ic_launcher');

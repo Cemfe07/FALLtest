@@ -7,7 +7,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
 from pydantic import BaseModel
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from app.db import get_session
 from app.core.config import settings
@@ -34,6 +34,26 @@ class MarkPaidRequest(BaseModel):
 
 class RatingRequest(BaseModel):
     rating: int
+
+
+def _ensure_no_blocking_locked_reading(session: Session, device_id: str) -> None:
+    stmt = (
+        select(HandReadingDB.id)
+        .where(
+            HandReadingDB.device_id == device_id,
+            HandReadingDB.is_paid == False,  # noqa: E712
+            HandReadingDB.result_text.is_not(None),
+            HandReadingDB.result_text != "",
+        )
+        .order_by(HandReadingDB.created_at.desc())
+        .limit(1)
+    )
+    existing_id = session.exec(stmt).first()
+    if existing_id:
+        raise HTTPException(
+            status_code=409,
+            detail="Bu bölümde kilidi açılmamış hazır bir yorumunuz var. Yeni yorumdan önce mevcut yorumu açın.",
+        )
 
 
 def _get_or_404_owner(session: Session, reading_id: str, device_id: str) -> HandReadingDB:
@@ -105,6 +125,8 @@ async def start(
       3) ödeme -> /payments/intent + /payments/verify (paid)
       4) /hand/{id}/generate -> yorum üret (processing -> completed)
     """
+    _ensure_no_blocking_locked_reading(session, device_id)
+
     db_obj = HandReadingDB(
         topic=req.topic,
         question=req.question,

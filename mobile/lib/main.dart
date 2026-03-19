@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:device_preview/device_preview.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
+import 'package:firebase_core/firebase_core.dart';
 
 import 'core/app_theme.dart';
 import 'features/home/home_screen.dart';
@@ -19,9 +20,15 @@ import 'features/iap/iap_debug_screen.dart';
 import 'services/iap_service.dart';
 // ✅ Push: yorum hazır bildirimi
 import 'services/notification_service.dart';
+import 'firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  if (!kIsWeb && Firebase.apps.isEmpty) {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  }
   await NotificationService.init();
 
   runApp(
