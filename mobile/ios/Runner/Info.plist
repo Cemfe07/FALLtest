@@ -47,5 +47,10 @@
 		<true/>
 		<key>UIStatusBarHidden</key>
 		<false/>
+		<!-- FCM: arka planda bildirim işleme (data message / güncelleme) -->
+		<key>UIBackgroundModes</key>
+		<array>
+			<string>remote-notification</string>
+		</array>
 	</dict>
 </plist>

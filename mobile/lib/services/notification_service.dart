@@ -1,20 +1,28 @@
 import 'dart:convert';
-import 'dart:io';
 
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, VoidCallback, debugPrint, defaultTargetPlatform, kDebugMode, kIsWeb;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api_base.dart';
 import 'device_id_service.dart';
+import 'package:lunaura/firebase_options.dart';
 
 const String _keyPromptShown = 'notification_prompt_shown';
 
 /// Arka planda gelen FCM mesajı (isolate'ta çalışır).
+/// `main()` içinde `runApp` öncesi `FirebaseMessaging.onBackgroundMessage` ile kaydedilmeli.
 @pragma('vm:entry-point')
-Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  if (Firebase.apps.isEmpty) {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  }
   if (message.notification != null) {
     await NotificationService._showLocalNotification(
       title: message.notification!.title ?? 'LunAura',
@@ -24,6 +32,9 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 }
 
 class NotificationService {
+  static bool get _canUseFirebaseMessaging =>
+      !kIsWeb && Firebase.apps.isNotEmpty;
+
   /// Bildirime tıklanınca UI tarafında okunacak callback.
   static VoidCallback? onOpenReadingsRequested;
 
@@ -46,17 +57,24 @@ class NotificationService {
       _initialized = true;
       return;
     }
-    try {
-      FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
+    try {
       const android = AndroidInitializationSettings('@mipmap/ic_launcher');
-      const initSettings = InitializationSettings(android: android);
+      const darwin = DarwinInitializationSettings(
+        requestAlertPermission: false,
+        requestBadgePermission: false,
+        requestSoundPermission: false,
+      );
+      final initSettings = InitializationSettings(
+        android: android,
+        iOS: darwin,
+      );
       await _localNotifications.initialize(
         initSettings,
         onDidReceiveNotificationResponse: _onNotificationTap,
       );
 
-      if (Platform.isAndroid) {
+      if (defaultTargetPlatform == TargetPlatform.android) {
         await _localNotifications
             .resolvePlatformSpecificImplementation<
                 AndroidFlutterLocalNotificationsPlugin>()
@@ -70,10 +88,17 @@ class NotificationService {
         sound: true,
       );
 
-      final settings = await FirebaseMessaging.instance.getNotificationSettings();
-      if (settings.authorizationStatus == AuthorizationStatus.authorized ||
-          settings.authorizationStatus == AuthorizationStatus.provisional) {
+      // Android + iOS: izin iste ve token'ı backend'e yaz.
+      if (defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.iOS) {
         await _requestPermissionAndRegister();
+      } else {
+        final settings =
+            await FirebaseMessaging.instance.getNotificationSettings();
+        if (settings.authorizationStatus == AuthorizationStatus.authorized ||
+            settings.authorizationStatus == AuthorizationStatus.provisional) {
+          await _requestPermissionAndRegister();
+        }
       }
       FirebaseMessaging.instance.onTokenRefresh.listen(_registerTokenWithBackend);
       FirebaseMessaging.onMessage.listen((RemoteMessage message) {
@@ -125,7 +150,12 @@ class NotificationService {
       importance: Importance.high,
       priority: Priority.high,
     );
-    final details = NotificationDetails(android: android);
+    const ios = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+    );
+    final details = NotificationDetails(android: android, iOS: ios);
     await _localNotifications.show(
       DateTime.now().millisecondsSinceEpoch.remainder(100000),
       title,
@@ -140,7 +170,18 @@ class NotificationService {
       badge: true,
       sound: true,
     );
-    if (settings.authorizationStatus == AuthorizationStatus.denied) return;
+    if (settings.authorizationStatus == AuthorizationStatus.denied) {
+      // Android: kullanıcı reddetse bile FCM token çoğu cihazda üretilir; backend'de tutulsun (sonra izin açılınca çalışır).
+      if (defaultTargetPlatform == TargetPlatform.android) {
+        try {
+          final token = await FirebaseMessaging.instance.getToken();
+          if (token != null && token.isNotEmpty) {
+            await _registerTokenWithBackend(token);
+          }
+        } catch (_) {}
+      }
+      return;
+    }
     final token = await FirebaseMessaging.instance.getToken();
     if (token != null && token.isNotEmpty) {
       await _registerTokenWithBackend(token);
@@ -170,6 +211,7 @@ class NotificationService {
   /// İzin henüz verilmemiş ve dialog daha önce gösterilmediyse true.
   static Future<bool> shouldShowNotificationPrompt() async {
     if (kIsWeb) return false;
+    if (!_canUseFirebaseMessaging) return false;
     try {
       final prefs = await SharedPreferences.getInstance();
       if (prefs.getBool(_keyPromptShown) == true) return false;
@@ -188,6 +230,7 @@ class NotificationService {
   static Future<void> requestPermissionAndRegister() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keyPromptShown, true);
+    if (!_canUseFirebaseMessaging) return;
     await _requestPermissionAndRegister();
   }
 

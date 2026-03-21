@@ -1,5 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Ağ: API + FCM (release'te debug manifest merge edilmez) -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <!-- ✅ Google Play Billing permission -->
     <uses-permission android:name="com.android.vending.BILLING" />
     <!-- ✅ Android 13+ bildirim izni (yorum hazır push) -->
@@ -35,6 +38,10 @@
             android:name="flutterEmbedding"
             android:value="2" />
 
+        <!-- FCM: uygulama kapalıyken gelen bildirimler için kanal (Dart'taki reading_ready ile aynı id) -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="reading_ready" />
     </application>
 
     <queries>

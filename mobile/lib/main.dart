@@ -1,9 +1,11 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart'
+    show kDebugMode, kIsWeb, kReleaseMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:device_preview/device_preview.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'dart:async';
 
 import 'core/app_theme.dart';
@@ -20,17 +22,40 @@ import 'features/iap/iap_debug_screen.dart';
 // ✅ IAP service
 import 'services/iap_service.dart';
 // ✅ Push: yorum hazır bildirimi
-import 'services/notification_service.dart';
+import 'services/notification_service.dart'
+    show NotificationService, firebaseMessagingBackgroundHandler;
 import 'firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(
-    DevicePreview(
-      enabled: !kReleaseMode, // debug modda açık
-      builder: (context) => const FallApp(),
-    ),
-  );
+
+  // FCM: arka plan handler runApp öncesi kayıtlı olmalı (FlutterFire).
+  if (!kIsWeb) {
+    try {
+      if (Firebase.apps.isEmpty) {
+        await Firebase.initializeApp(
+          options: DefaultFirebaseOptions.currentPlatform,
+        ).timeout(const Duration(seconds: 12));
+      }
+    } catch (e, st) {
+      if (kDebugMode) {
+        debugPrint('[main] Firebase init: $e\n$st');
+      }
+    }
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  }
+
+  // Release'te DevicePreview sarmalayıcısı yok — App Store / iPad incelemesinde ek risk oluşturmasın.
+  if (kReleaseMode) {
+    runApp(const FallApp());
+  } else {
+    runApp(
+      DevicePreview(
+        enabled: true,
+        builder: (context) => const FallApp(),
+      ),
+    );
+  }
 }
 
 class FallApp extends StatefulWidget {
@@ -124,10 +149,9 @@ class _FallAppState extends State<FallApp> with WidgetsBindingObserver {
       debugShowCheckedModeBanner: false,
       navigatorKey: _navKey,
 
-      // ✅ DevicePreview için gerekli
-      useInheritedMediaQuery: true,
-      locale: DevicePreview.locale(context),
-      builder: DevicePreview.appBuilder,
+      // DevicePreview yalnızca debug/profile
+      locale: kReleaseMode ? null : DevicePreview.locale(context),
+      builder: kReleaseMode ? null : DevicePreview.appBuilder,
 
       theme: AppTheme.dark(),
 

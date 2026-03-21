@@ -26,6 +26,25 @@ workflows:
         bundle_identifier: "com.anlgzl.lunaura"
 
     scripts:
+      # GoogleService-Info.plist: ya repoda mobile/ios/Runner/ altında olmalı,
+      # ya da Codemagic'te GOOGLE_SERVICE_INFO_PLIST_BASE64 (Secret) tanımlı olmalı.
+      - name: Ensure GoogleService-Info.plist (Firebase iOS)
+        script: |
+          set -e
+          PLIST_PATH="mobile/ios/Runner/GoogleService-Info.plist"
+          if [ -f "$PLIST_PATH" ]; then
+            echo "OK: GoogleService-Info.plist repo içinde."
+            exit 0
+          fi
+          if [ -z "$GOOGLE_SERVICE_INFO_PLIST_BASE64" ]; then
+            echo "HATA: $PLIST_PATH yok ve GOOGLE_SERVICE_INFO_PLIST_BASE64 tanımlı değil."
+            echo "Firebase Console → iOS uygulaması → GoogleService-Info.plist indir;"
+            echo "dosyayı mobile/ios/Runner/ içine koy (commit) VEYA Codemagic'te base64 secret ekle."
+            exit 1
+          fi
+          echo "$GOOGLE_SERVICE_INFO_PLIST_BASE64" | base64 -D > "$PLIST_PATH"
+          echo "OK: Plist GOOGLE_SERVICE_INFO_PLIST_BASE64 ile yazıldı."
+
       - name: Get Flutter packages
         script: |
           cd mobile
