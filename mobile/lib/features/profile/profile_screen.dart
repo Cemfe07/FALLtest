@@ -33,6 +33,9 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
+  /// Bu süreden eski ve hâlâ sonucu olmayan kayıtlar için otomatik arka plan yenileme yapılmaz (takılı numeroloji vb.)
+  static const Duration _kStalePendingThreshold = Duration(hours: 48);
+
   final _nameCtrl = TextEditingController();
   final _birthDateCtrl = TextEditingController(); // YYYY-MM-DD
   final _birthPlaceCtrl = TextEditingController();
@@ -67,6 +70,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   bool _hasResult(ProfileReadingItem r) {
     return r.hasResult || (r.resultText ?? '').trim().isNotEmpty || _isReadyLockedOrDone(r);
+  }
+
+  bool _isStalePending(ProfileReadingItem r) {
+    if (_hasResult(r)) return false;
+    final ca = r.createdAt;
+    if (ca == null) return false;
+    return DateTime.now().difference(ca) > _kStalePendingThreshold;
+  }
+
+  /// Yalnızca "taze" bekleyen okumalar için 12 sn'de bir history çekilir
+  bool _eligibleForAutoPoll(ProfileReadingItem r) {
+    if (_hasResult(r)) return false;
+    if (_isStalePending(r)) return false;
+    return true;
   }
 
   List<ProfileReadingItem> _pickActiveLockedItems(List<ProfileReadingItem> locked) {
@@ -209,7 +226,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       bool anyJustReady = false;
       for (final r in newItems) {
         final hasResult = _hasResult(r);
-        if (!hasResult) {
+        if (!hasResult && _eligibleForAutoPoll(r)) {
           nowPending.add(r.id);
         } else if (hasResult && _pendingReadingIds.contains(r.id)) {
           anyJustReady = true;
@@ -531,16 +548,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
             : null)
         : null;
     final waitingComment = !hasResult;
+    final stalePending = _isStalePending(r);
     final readyLocked = hasResult && !r.isPaid;
     final delKey = '${r.type}:${r.id}';
     final deleting = _deletingReadingKey == delKey;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Expanded(
+          Material(
+            color: Colors.transparent,
             child: InkWell(
               onTap: deleting ? null : () => _openReading(r),
               borderRadius: BorderRadius.circular(12),
@@ -549,7 +568,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(_iconForType(r.type), color: const Color(0xFFF5C361), size: 20),
+                    Icon(_iconForType(r.type), color: const Color(0xFFF5C361), size: 22),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Column(
@@ -562,24 +581,42 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           if (dateStr != null) Text(dateStr, style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 12)),
                           if (waitingComment) ...[
                             const SizedBox(height: 6),
-                            Row(
-                              children: [
-                                SizedBox(
-                                  width: 14,
-                                  height: 14,
-                                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.amber.shade200),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    'Yorumunuz hazırlanıyor... Hazır olduğunda buradan ve bildirimle görebileceksiniz. Takılı kaldıysa dokunarak yeniden deneyin.',
-                                    style: TextStyle(color: Colors.amber.shade200, fontSize: 12, height: 1.35, fontStyle: FontStyle.italic),
-                                    maxLines: 3,
-                                    overflow: TextOverflow.ellipsis,
+                            if (stalePending)
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Icon(Icons.warning_amber_rounded, color: Colors.orange.shade200, size: 18),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'Bu okuma uzun süredir tamamlanmadı. «Sil» ile kaldırın veya satıra dokunarak yeniden deneyin.',
+                                      style: TextStyle(color: Colors.orange.shade200, fontSize: 12, height: 1.35, fontStyle: FontStyle.italic),
+                                      maxLines: 4,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
                                   ),
-                                ),
-                              ],
-                            ),
+                                ],
+                              )
+                            else
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  SizedBox(
+                                    width: 14,
+                                    height: 14,
+                                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.amber.shade200),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'Yorumunuz hazırlanıyor... Hazır olduğunda buradan ve bildirimle görebileceksiniz. Takılı kaldıysa dokunarak yeniden deneyin.',
+                                      style: TextStyle(color: Colors.amber.shade200, fontSize: 12, height: 1.35, fontStyle: FontStyle.italic),
+                                      maxLines: 3,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
                           ] else if (readyLocked) ...[
                             const SizedBox(height: 6),
                             Text(
@@ -606,14 +643,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
           ),
-          IconButton(
-            tooltip: 'Sil',
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-            onPressed: deleting ? null : () => _confirmDeleteReading(r),
-            icon: deleting
-                ? SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.red.shade100))
-                : Icon(Icons.delete_outline, color: Colors.red.shade200, size: 22),
+          const SizedBox(height: 2),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.red.shade200,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
+              ),
+              icon: deleting
+                  ? SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.red.shade100),
+                    )
+                  : Icon(Icons.delete_outline, size: 20, color: Colors.red.shade200),
+              label: Text(
+                deleting ? 'Siliniyor…' : 'Sil',
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Colors.red.shade200),
+              ),
+              onPressed: deleting ? null : () => _confirmDeleteReading(r),
+            ),
           ),
         ],
       ),
