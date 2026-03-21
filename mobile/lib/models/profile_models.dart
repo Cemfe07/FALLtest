@@ -77,6 +77,19 @@ class ProfileReadingItem {
     if (raw != null) {
       if (raw is String) {
         createdAt = DateTime.tryParse(raw);
+      } else if (raw is int) {
+        // Sunucu bazen ms (13 hane) veya saniye (10 hane) gönderebilir
+        final v = raw;
+        createdAt = DateTime.fromMillisecondsSinceEpoch(
+          v > 100000000000 ? v : v * 1000,
+          isUtc: true,
+        ).toLocal();
+      } else if (raw is num) {
+        final v = raw.toInt();
+        createdAt = DateTime.fromMillisecondsSinceEpoch(
+          v > 100000000000 ? v : v * 1000,
+          isUtc: true,
+        ).toLocal();
       }
     }
     final rt = json['result_text'];

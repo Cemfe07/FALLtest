@@ -61,3 +61,28 @@ Ardından Xcode → Archive → App Store Connect.
 
 - Plist’teki **`GOOGLE_APP_ID`**, **`API_KEY`** vb. ile `lib/firebase_options.dart` iOS satırları aynı Firebase uygulamasına ait olmalı.
 - Codemagic’te **sertifika / profil / App Store Connect** ayrı; plist sadece Firebase iOS yapılandırması içindir.
+
+---
+
+## Codemagic / Xcode: “Provisioning profile doesn’t include Push Notifications / aps-environment”
+
+Repoda **`RunnerRelease.entitlements`** içinde `aps-environment` var (FCM push için gerekli). **App Store dağıtım provisioning profile**’ın da aynı App ID için **Push Notifications** yetkisini içermesi şart.
+
+### Apple Developer’da yapılacaklar (Mac şart değil, tarayıcı)
+
+1. [Identifiers](https://developer.apple.com/account/resources/identifiers/list) → **`com.anlgzl.lunaura`** App ID’yi aç → **Edit**.
+2. **Push Notifications** kutusunu işaretle → **Save** (zaten açıksa dokunma).
+3. [Profiles](https://developer.apple.com/account/resources/profiles/list) → **App Store** (veya **Distribution**) tipinde, bu uygulamayı kullanan profili bul (log’daki **“Lunaura AppStore”** vb.).
+4. Profili **yenile**:  
+   - Ya profili **sil** → **+** ile **App Store Connect** dağıtım profili **yeniden oluştur** (aynı App ID + sertifika),  
+   - Ya Apple arayüzünde **Edit → Generate** ile güncel profil üret.
+5. **Codemagic** otomatik imza kullanıyorsa: bir sonraki build’de Apple’dan **güncel profil** çekilir; gerekirse Codemagic’te **Developer Portal** entegrasyonunun bu takıma bağlı olduğundan emin ol ve build’i **yeniden çalıştır**.
+
+### Özet
+
+| Sorun | Çözüm |
+|--------|--------|
+| Profilde `aps-environment` yok | App ID’de **Push** açık + **App Store profili yeniden üretilmiş** olmalı |
+| Projede entitlement var | Doğru; profili buna uyumlu hale getir (entitlement’ı silme — push gider) |
+
+**Geçici olarak push istemiyorsan** (önerilmez): `project.pbxproj` içinden Release için `CODE_SIGN_ENTITLEMENTS` satırlarını ve `RunnerRelease.entitlements` içindeki `aps-environment` kaldırılabilir; IPA üretilir ama **uzaktan bildirim çalışmaz**.
