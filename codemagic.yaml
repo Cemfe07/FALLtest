@@ -82,3 +82,24 @@ workflows:
       app_store_connect:
         auth: integration
         submit_to_testflight: true
+
+  # Test / dahili dağıtım: IPA yerine debug APK (imza: debug key). API = Railway.
+  # Codemagic → Start new build → bu workflow'u seç → Artifacts'tan app-debug.apk indir.
+  android-debug-railway:
+    name: Android Debug APK (Railway API)
+    instance_type: linux_x2
+    max_build_duration: 30
+    environment:
+      flutter: stable
+      vars:
+        API_HOST: "https://fall-production.up.railway.app"
+    scripts:
+      - name: Get packages & build debug APK
+        script: |
+          set -e
+          cd mobile
+          flutter pub get
+          echo "API_HOST=$API_HOST"
+          flutter build apk --debug --dart-define=API_HOST=$API_HOST
+    artifacts:
+      - mobile/build/app/outputs/flutter-apk/app-debug.apk

@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'firebase_bootstrap.dart';
 import 'package:flutter/foundation.dart'
     show TargetPlatform, VoidCallback, debugPrint, defaultTargetPlatform, kDebugMode, kIsWeb;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -10,18 +11,19 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api_base.dart';
 import 'device_id_service.dart';
-import 'package:lunaura/firebase_options.dart';
-
 const String _keyPromptShown = 'notification_prompt_shown';
 
 /// Arka planda gelen FCM mesajı (isolate'ta çalışır).
 /// `main()` içinde `runApp` öncesi `FirebaseMessaging.onBackgroundMessage` ile kaydedilmeli.
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  if (Firebase.apps.isEmpty) {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
+  try {
+    await FirebaseBootstrap.ensureInitialized();
+  } catch (e) {
+    if (kDebugMode) {
+      debugPrint('[FCM background] Firebase init: $e');
+    }
+    if (Firebase.apps.isEmpty) return;
   }
   if (message.notification != null) {
     await NotificationService._showLocalNotification(

@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:device_preview/device_preview.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'dart:async';
 
@@ -24,19 +23,26 @@ import 'services/iap_service.dart';
 // ✅ Push: yorum hazır bildirimi
 import 'services/notification_service.dart'
     show NotificationService, firebaseMessagingBackgroundHandler;
-import 'firebase_options.dart';
+import 'services/firebase_bootstrap.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  FlutterError.onError = (FlutterErrorDetails details) {
+    FlutterError.presentError(details);
+  };
+  WidgetsBinding.instance.platformDispatcher.onError = (error, stack) {
+    if (kDebugMode) {
+      debugPrint('[platformDispatcher.onError] $error\n$stack');
+    }
+    return true;
+  };
+
   // FCM: arka plan handler runApp öncesi kayıtlı olmalı (FlutterFire).
   if (!kIsWeb) {
     try {
-      if (Firebase.apps.isEmpty) {
-        await Firebase.initializeApp(
-          options: DefaultFirebaseOptions.currentPlatform,
-        ).timeout(const Duration(seconds: 12));
-      }
+      await FirebaseBootstrap.ensureInitialized()
+          .timeout(const Duration(seconds: 12));
     } catch (e, st) {
       if (kDebugMode) {
         debugPrint('[main] Firebase init: $e\n$st');
@@ -71,17 +77,7 @@ class _FallAppState extends State<FallApp> with WidgetsBindingObserver {
   Future<void> _bootstrapCoreServices() async {
     if (kIsWeb) return;
 
-    try {
-      if (Firebase.apps.isEmpty) {
-        await Firebase.initializeApp(
-          options: DefaultFirebaseOptions.currentPlatform,
-        ).timeout(const Duration(seconds: 12));
-      }
-    } catch (e, st) {
-      if (kDebugMode) {
-        debugPrint('[Bootstrap] Firebase init skipped: $e\n$st');
-      }
-    }
+    // Push/FCM: Firebase [FirebaseBootstrap] ile main()'de zaten başlatıldı.
 
     try {
       await NotificationService.init().timeout(const Duration(seconds: 12));
@@ -123,8 +119,8 @@ class _FallAppState extends State<FallApp> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     NotificationService.onOpenReadingsRequested = null;
 
-    // ✅ Purchase stream subscription varsa temizle
-    IapService.instance.dispose();
+    // ✅ Purchase stream subscription varsa temizle (async; beklemeden başlat)
+    unawaited(IapService.instance.dispose());
 
     super.dispose();
   }

@@ -59,8 +59,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Set<String> _pendingReadingIds = {};
   Timer? _pendingRefreshTimer;
 
-  /// Kilidi açılmış görünür sıra (en fazla 5; silince geçmişten doldurulmaz)
-  List<String> _unlockedVisibleIds = [];
   String? _deletingReadingKey;
 
   bool _isReadyLockedOrDone(ProfileReadingItem r) {
@@ -87,34 +85,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return true;
   }
 
-  List<ProfileReadingItem> _pickActiveLockedItems(List<ProfileReadingItem> locked) {
-    // Her tür için tek "aktif" kayıt göster:
-    // 1) Hazır kilitli (hasResult=true) varsa onu,
-    // 2) yoksa en yeni hazırlanıyor kaydını.
-    final byType = <String, List<ProfileReadingItem>>{};
-    for (final r in locked) {
-      byType.putIfAbsent(r.type, () => <ProfileReadingItem>[]).add(r);
-    }
-
-    final picked = <ProfileReadingItem>[];
-    for (final group in byType.values) {
-      group.sort((a, b) {
-        final aReady = _hasResult(a) ? 1 : 0;
-        final bReady = _hasResult(b) ? 1 : 0;
-        if (aReady != bReady) return bReady.compareTo(aReady);
-        final ad = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-        final bd = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-        return bd.compareTo(ad);
-      });
-      picked.add(group.first);
-    }
-
-    picked.sort((a, b) {
+  void _sortReadingsByDateDesc(List<ProfileReadingItem> list) {
+    list.sort((a, b) {
       final ad = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
       final bd = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
       return bd.compareTo(ad);
     });
-    return picked;
   }
 
   @override
@@ -155,7 +131,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         backgroundColor: const Color(0xFF2a1a32),
         title: const Text('Okumayı sil?', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
         content: Text(
-          '${r.typeLabel} kaydını kalıcı olarak silmek istiyor musun? Bu işlem geri alınamaz.',
+          '"${r.title.isNotEmpty ? r.title : r.typeLabel}" kaydını sunucudan kalıcı olarak silmek istiyor musun? Uygulamayı silsen bile bu kayıt yeniden gelmez; tekrar oluşturman gerekir.',
           style: TextStyle(color: Colors.white.withOpacity(0.88), height: 1.35),
         ),
         actions: [
@@ -218,10 +194,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
     try {
       final deviceId = await DeviceIdService.getOrCreate();
-      final res = await ProfileApi.getHistory(deviceId: deviceId, limit: 50);
+      final res = await ProfileApi.getHistory(deviceId: deviceId, limit: 100);
       if (!mounted) return;
       final newItems = res.items;
-      final visibleUnlocked = await ProfileUnlockedSlotsService.instance.syncAfterHistoryFetch(newItems);
       if (!mounted) return;
       final nowPending = <String>{};
       bool anyJustReady = false;
@@ -238,7 +213,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _readingsLoading = false;
         _readingsError = null;
         _pendingReadingIds = nowPending;
-        _unlockedVisibleIds = visibleUnlocked;
       });
       _startOrStopPendingRefresh();
       if (anyJustReady) {
@@ -555,113 +529,121 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final deleting = _deletingReadingKey == delKey;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Material(
-        color: Colors.transparent,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: InkWell(
-                onTap: deleting ? null : () => _openReading(r),
-                borderRadius: BorderRadius.circular(12),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Icon(_iconForType(r.type), color: const Color(0xFFF5C361), size: 22),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Material(
+            color: Colors.black.withOpacity(0.25),
+            borderRadius: BorderRadius.circular(12),
+            child: InkWell(
+              onTap: deleting ? null : () => _openReading(r),
+              borderRadius: BorderRadius.circular(12),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(_iconForType(r.type), color: const Color(0xFFF5C361), size: 22),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            r.title.isNotEmpty ? r.title : r.typeLabel,
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 14),
+                          ),
+                          if (dateStr != null) Text(dateStr, style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 12)),
+                          if (waitingComment) ...[
+                            const SizedBox(height: 6),
+                            if (stalePending)
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Icon(Icons.warning_amber_rounded, color: Colors.orange.shade200, size: 18),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'Bu okuma uzun süredir tamamlanmadı. Aşağıdan kalıcı silebilir veya satıra dokunarak yeniden deneyebilirsiniz.',
+                                      style: TextStyle(color: Colors.orange.shade200, fontSize: 12, height: 1.35, fontStyle: FontStyle.italic),
+                                      maxLines: 5,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              )
+                            else
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  SizedBox(
+                                    width: 14,
+                                    height: 14,
+                                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.amber.shade200),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'Yorumunuz hazırlanıyor... Hazır olduğunda buradan ve bildirimle görebileceksiniz. İstemiyorsanız aşağıdan kalıcı silin.',
+                                      style: TextStyle(color: Colors.amber.shade200, fontSize: 12, height: 1.35, fontStyle: FontStyle.italic),
+                                      maxLines: 4,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                          ] else if (readyLocked) ...[
+                            const SizedBox(height: 6),
                             Text(
-                              r.title.isNotEmpty ? r.title : r.typeLabel,
-                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 14),
+                              'Yorumunuz hazır. Kilidi açıp tamamını okuyabilirsiniz.',
+                              style: TextStyle(color: Colors.lightGreenAccent.shade100, fontSize: 12, height: 1.35, fontStyle: FontStyle.italic),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            if (dateStr != null) Text(dateStr, style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 12)),
-                            if (waitingComment) ...[
-                              const SizedBox(height: 6),
-                              if (stalePending)
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Icon(Icons.warning_amber_rounded, color: Colors.orange.shade200, size: 18),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        'Bu okuma uzun süredir tamamlanmadı. Sağdaki çöp kutusuna basarak silebilir veya satıra dokunarak yeniden deneyebilirsiniz.',
-                                        style: TextStyle(color: Colors.orange.shade200, fontSize: 12, height: 1.35, fontStyle: FontStyle.italic),
-                                        maxLines: 5,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                  ],
-                                )
-                              else
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    SizedBox(
-                                      width: 14,
-                                      height: 14,
-                                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.amber.shade200),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        'Yorumunuz hazırlanıyor... Hazır olduğunda buradan ve bildirimle görebileceksiniz. Takılı kaldıysa sağdan silin veya satıra dokunun.',
-                                        style: TextStyle(color: Colors.amber.shade200, fontSize: 12, height: 1.35, fontStyle: FontStyle.italic),
-                                        maxLines: 4,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                            ] else if (readyLocked) ...[
-                              const SizedBox(height: 6),
-                              Text(
-                                'Yorumunuz hazır. Kilidi açıp tamamını okuyabilirsiniz.',
-                                style: TextStyle(color: Colors.lightGreenAccent.shade100, fontSize: 12, height: 1.35, fontStyle: FontStyle.italic),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ] else if (preview != null) ...[
-                              const SizedBox(height: 6),
-                              Text(
-                                preview,
-                                style: TextStyle(color: Colors.white.withOpacity(0.85), fontSize: 12, height: 1.35),
-                                maxLines: 3,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
+                          ] else if (preview != null) ...[
+                            const SizedBox(height: 6),
+                            Text(
+                              preview,
+                              style: TextStyle(color: Colors.white.withOpacity(0.85), fontSize: 12, height: 1.35),
+                              maxLines: 3,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ],
-                        ),
+                        ],
                       ),
-                      const Icon(Icons.chevron_right, color: Colors.white54, size: 22),
-                    ],
-                  ),
+                    ),
+                    const Icon(Icons.chevron_right, color: Colors.white54, size: 22),
+                  ],
                 ),
               ),
             ),
-            Tooltip(
-              message: deleting ? 'Siliniyor…' : 'Okumayı sil',
-              child: IconButton(
-                onPressed: deleting ? null : () => _confirmDeleteReading(r),
-                icon: deleting
-                    ? SizedBox(
-                        width: 22,
-                        height: 22,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.red.shade100),
-                      )
-                    : Icon(Icons.delete_outline, color: Colors.red.shade200, size: 26),
-                padding: const EdgeInsets.only(left: 4, top: 4),
-                constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+          ),
+          const SizedBox(height: 6),
+          TextButton.icon(
+            onPressed: deleting ? null : () => _confirmDeleteReading(r),
+            icon: deleting
+                ? SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.red.shade200),
+                  )
+                : Icon(Icons.delete_forever_outlined, color: Colors.red.shade200, size: 20),
+            label: Text(
+              deleting ? 'Siliniyor…' : 'Kalıcı olarak sil (sunucudan)',
+              style: TextStyle(
+                color: Colors.red.shade200,
+                fontWeight: FontWeight.w800,
+                fontSize: 13,
               ),
             ),
-          ],
-        ),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.red.shade200,
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+              alignment: Alignment.centerLeft,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -902,18 +884,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                       : Builder(
                                           builder: (_) {
                                             final all = _readings!;
-                                            final lockedAll = all.where((r) => !r.isPaid).toList();
-                                            final locked = _pickActiveLockedItems(lockedAll);
-                                            final paidById = {for (final x in all.where((r) => r.isPaid)) x.id: x};
-                                            final unlocked = _unlockedVisibleIds
-                                                .map((id) => paidById[id])
-                                                .whereType<ProfileReadingItem>()
-                                                .toList();
+                                            final locked = all.where((r) => !r.isPaid).toList();
+                                            _sortReadingsByDateDesc(locked);
+                                            final unlocked = all.where((r) => r.isPaid).toList();
+                                            _sortReadingsByDateDesc(unlocked);
                                             return Column(
                                               crossAxisAlignment: CrossAxisAlignment.start,
                                               children: [
                                                 Text(
-                                                  "Kilidi Açılmamış (${locked.length})",
+                                                  'Okumalar hesabına (cihaz kimliğine) bağlıdır; uygulamayı silsen de sunucudaki kayıtlar durur. İstemediğin satırı aşağıdan kalıcı olarak silebilirsin.',
+                                                  style: TextStyle(
+                                                    color: Colors.white.withOpacity(0.78),
+                                                    fontSize: 12,
+                                                    height: 1.35,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 12),
+                                                Text(
+                                                  "Kilidi açılmamış (${locked.length})",
                                                   style: TextStyle(
                                                     color: Colors.amber.shade200,
                                                     fontSize: 13,
@@ -930,7 +918,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                                   ...locked.map(_readingTile),
                                                 const SizedBox(height: 10),
                                                 Text(
-                                                  "Kilidi Açılmış (en fazla 5, şu an ${unlocked.length})",
+                                                  "Kilidi açılmış (${unlocked.length})",
                                                   style: TextStyle(
                                                     color: Colors.lightGreenAccent.shade100,
                                                     fontSize: 13,

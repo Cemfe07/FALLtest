@@ -15,7 +15,7 @@ Projede `lib/firebase_options.dart` iOS satırları **yanlış / eksik** ise `Fi
    dart run flutterfire_cli:configure
    ```
    Oluşan `lib/firebase_options.dart` dosyası hem Android hem iOS satırlarını içermeli.
-4. `main.dart` içinde (web hariç) `Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform)` çalışır; iOS’ta da gerçek `firebase_options` kullanılmalıdır.
+4. `lib/services/firebase_bootstrap.dart` → `FirebaseBootstrap.ensureInitialized()` tek giriş noktasıdır; `main()` ve FCM arka plan isolate’i bunu kullanır. **Doğrudan ekstra `Firebase.initializeApp` çağrısı ekleme** — iOS’ta çift kayıt SIGABRT üretir.
 5. Xcode’da **Push Notifications** capability (ve gerekirse Background Modes → Remote notifications).
 6. Gerçek cihaz veya simülatörde **Release** profiliyle açılışı test edin.
 

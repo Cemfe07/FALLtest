@@ -2,8 +2,8 @@ name: lunaura
 description: "A new Flutter project."
 publish_to: 'none'
 
-# 🔴 Play Store / App Store: build number 44
-version: 1.0.0+44
+# 🔴 App Store Review (2.1 launch crash) sonrası: yeni binary bu numara ile gönderilmeli
+version: 1.0.0+45
 
 environment:
   sdk: ^3.9.2
