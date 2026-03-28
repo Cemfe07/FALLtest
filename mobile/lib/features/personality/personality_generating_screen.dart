@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../services/device_id_service.dart';
 import '../../services/personality_api.dart';
 import '../../widgets/glass_card.dart';
+import '../../widgets/mystic_loading_indicator.dart';
 import '../../widgets/mystic_scaffold.dart';
 import '../home/home_screen.dart';
 import '../profile/profile_screen.dart';
@@ -184,14 +185,10 @@ class _PersonalityGeneratingScreenState extends State<PersonalityGeneratingScree
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const CircularProgressIndicator(),
-                  const SizedBox(height: 16),
-                  Text(_statusText, textAlign: TextAlign.center),
-                  const SizedBox(height: 10),
-                  Text(
-                    'Lütfen uygulamadan çıkma 🙏',
-                    style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.70)),
-                    textAlign: TextAlign.center,
+                  MysticLoadingIndicator(
+                    message: _statusText,
+                    submessage: 'Lütfen uygulamadan çıkmayın',
+                    size: 100,
                   ),
                   if (!_loading) ...[
                     const SizedBox(height: 14),

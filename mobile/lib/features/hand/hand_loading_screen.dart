@@ -5,6 +5,7 @@ import '../../models/hand_reading.dart';
 import '../../services/device_id_service.dart';
 import '../../services/hand_api.dart';
 import '../../widgets/glass_card.dart';
+import '../../widgets/mystic_loading_indicator.dart';
 import '../../widgets/mystic_scaffold.dart';
 import 'hand_payment_screen.dart';
 import '../profile/profile_screen.dart';
@@ -163,17 +164,10 @@ class _HandLoadingScreenState extends State<HandLoadingScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const CircularProgressIndicator(),
-                  const SizedBox(height: 16),
-                  Text(
-                    _statusText,
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Lütfen uygulamadan çıkma 🙏',
-                    style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.7)),
-                    textAlign: TextAlign.center,
+                  MysticLoadingIndicator(
+                    message: _statusText,
+                    submessage: 'Lütfen uygulamadan çıkmayın',
+                    size: 100,
                   ),
                 ],
               ),

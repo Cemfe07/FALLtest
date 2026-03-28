@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../services/device_id_service.dart';
 import '../../services/synastry_api.dart';
+import '../../widgets/mystic_loading_indicator.dart';
 import '../profile/profile_screen.dart';
 import 'synastry_payment_screen.dart';
 import 'synastry_result_screen.dart';
@@ -298,28 +299,26 @@ class _SynastryGeneratingScreenState extends State<SynastryGeneratingScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               if (!isError)
-                const SizedBox(
-                  width: 52,
-                  height: 52,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2.5,
-                    color: Color(0xFF6DD5FA),
-                  ),
+                MysticLoadingIndicator(
+                  message: msg,
+                  submessage: sub,
+                  size: 100,
                 )
-              else
-                const Icon(Icons.error_outline, color: Colors.redAccent, size: 42),
-              const SizedBox(height: 14),
-              Text(
-                msg,
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.white70, height: 1.3),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                sub,
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.white38, height: 1.3),
-              ),
+              else ...[
+                const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 42),
+                const SizedBox(height: 14),
+                Text(
+                  msg,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.white70, height: 1.3),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  sub,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.white38, height: 1.3),
+                ),
+              ],
               if (isError) ...[
                 const SizedBox(height: 16),
                 ElevatedButton(

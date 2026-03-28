@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
@@ -410,6 +411,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                       subtitle: 'Fotoğraf yükle, detaylı fal yorumunu al.',
                       icon: Icons.coffee_outlined,
                       onTap: () => _openCoffee(context),
+                      animationDelay: const Duration(milliseconds: 80),
                     ),
                     const SizedBox(height: 12),
 
@@ -418,6 +420,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                       subtitle: 'Avuç içi analizi ve kişilik haritası.',
                       icon: Icons.pan_tool_outlined,
                       onTap: () => _openHand(context),
+                      animationDelay: const Duration(milliseconds: 150),
                     ),
                     const SizedBox(height: 12),
 
@@ -426,6 +429,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                       subtitle: '3 - 6 - 12 kart açılımları.',
                       icon: Icons.style_outlined,
                       onTap: () => _openTarot(context),
+                      animationDelay: const Duration(milliseconds: 220),
                     ),
                     const SizedBox(height: 12),
 
@@ -434,6 +438,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                       subtitle: 'Yaşam sayısı, kader sayısı ve daha fazlası.',
                       icon: Icons.auto_awesome_outlined,
                       onTap: () => _openNumerology(context),
+                      animationDelay: const Duration(milliseconds: 290),
                     ),
                     const SizedBox(height: 12),
 
@@ -442,6 +447,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                       subtitle: 'Doğum tarihi, yer ve (opsiyonel) saat ile analiz.',
                       icon: Icons.public_outlined,
                       onTap: () => _openBirthChart(context),
+                      animationDelay: const Duration(milliseconds: 360),
                     ),
                     const SizedBox(height: 12),
 
@@ -450,6 +456,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                       subtitle: 'Numeroloji + Doğum Haritası birleşik rapor + PDF indir.',
                       icon: Icons.psychology_alt_outlined,
                       onTap: () => _openPersonality(context),
+                      animationDelay: const Duration(milliseconds: 430),
                     ),
                     const SizedBox(height: 12),
 
@@ -458,6 +465,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                       subtitle: 'İki kişinin doğum bilgileriyle uyum analizi + PDF rapor.',
                       icon: Icons.favorite_outline,
                       onTap: () => _openSynastry(context),
+                      animationDelay: const Duration(milliseconds: 500),
                     ),
                   ],
                 ),
@@ -495,30 +503,50 @@ class _BottomBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.42),
-        border: const Border(
-          top: BorderSide(color: Colors.white12, width: 0.5),
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 10),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Colors.black.withOpacity(0.30),
+                Colors.black.withOpacity(0.50),
+              ],
+            ),
+            border: Border(
+              top: BorderSide(
+                color: AppColors.gold.withOpacity(0.12),
+                width: 0.5,
+              ),
+            ),
+          ),
+          child: SafeArea(
+            top: false,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _BottomItem(
+                  icon: Icons.home_outlined,
+                  activeIcon: Icons.home_rounded,
+                  label: 'Ana Sayfa',
+                  active: active == _BottomTab.home,
+                  onTap: onTapHome,
+                ),
+                _BottomItem(
+                  icon: Icons.person_outline_rounded,
+                  activeIcon: Icons.person_rounded,
+                  label: 'Profil',
+                  active: active == _BottomTab.profile,
+                  onTap: onTapProfile,
+                ),
+              ],
+            ),
+          ),
         ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          _BottomItem(
-            icon: Icons.home_outlined,
-            label: 'Ana Sayfa',
-            active: active == _BottomTab.home,
-            onTap: onTapHome,
-          ),
-          _BottomItem(
-            icon: Icons.person_outline,
-            label: 'Profil',
-            active: active == _BottomTab.profile,
-            onTap: onTapProfile,
-          ),
-        ],
       ),
     );
   }
@@ -526,12 +554,14 @@ class _BottomBar extends StatelessWidget {
 
 class _BottomItem extends StatelessWidget {
   final IconData icon;
+  final IconData activeIcon;
   final String label;
   final bool active;
   final VoidCallback onTap;
 
   const _BottomItem({
     required this.icon,
+    required this.activeIcon,
     required this.label,
     required this.active,
     required this.onTap,
@@ -539,22 +569,54 @@ class _BottomItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = active ? const Color(0xFFF5C361) : Colors.white70;
-    final textColor = active ? const Color(0xFFF5C361) : Colors.white.withOpacity(0.70);
+    final color = active ? AppColors.gold : Colors.white.withOpacity(0.55);
 
-    return InkWell(
+    return GestureDetector(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
+      behavior: HitTestBehavior.opaque,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 22, color: color),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              child: Icon(
+                active ? activeIcon : icon,
+                key: ValueKey(active),
+                size: 24,
+                color: color,
+              ),
+            ),
             const SizedBox(height: 4),
             Text(
               label,
-              style: TextStyle(color: textColor, fontSize: 11, fontWeight: FontWeight.w800),
+              style: TextStyle(
+                color: color,
+                fontSize: 11,
+                fontWeight: active ? FontWeight.w800 : FontWeight.w600,
+                letterSpacing: 0.2,
+              ),
+            ),
+            const SizedBox(height: 3),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeOut,
+              width: active ? 20 : 0,
+              height: 2.5,
+              decoration: BoxDecoration(
+                color: active ? AppColors.gold : Colors.transparent,
+                borderRadius: BorderRadius.circular(2),
+                boxShadow: active
+                    ? [
+                        BoxShadow(
+                          color: AppColors.gold.withOpacity(0.5),
+                          blurRadius: 6,
+                          spreadRadius: 1,
+                        ),
+                      ]
+                    : [],
+              ),
             ),
           ],
         ),

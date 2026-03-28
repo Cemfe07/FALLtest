@@ -83,6 +83,15 @@ class _MysticBackgroundState extends State<MysticBackground>
             // 🖤 Readability scrim
             Container(color: Colors.black.withOpacity(widget.scrimOpacity)),
 
+            // ☁️ Floating nebula orbs
+            Positioned.fill(
+              child: IgnorePointer(
+                child: CustomPaint(
+                  painter: _NebulaOrbsPainter(t),
+                ),
+              ),
+            ),
+
             // ✨ Pattern overlay (nabız ile opaklık)
             if (patternOpacity > 0)
               Positioned.fill(
@@ -154,6 +163,54 @@ class _TwinklePainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _TwinklePainter oldDelegate) =>
       oldDelegate.time != time;
+}
+
+class _NebulaOrbsPainter extends CustomPainter {
+  final double time;
+  _NebulaOrbsPainter(this.time);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final orbs = <_NebOrb>[
+      _NebOrb(0.18, 0.28, 0.10, const Color(0xFF6DD5FA), 0.045),
+      _NebOrb(0.72, 0.62, 0.14, const Color(0xFFE040A0), 0.030),
+      _NebOrb(0.48, 0.12, 0.07, const Color(0xFFFFD27D), 0.040),
+      _NebOrb(0.85, 0.22, 0.10, const Color(0xFF4A2070), 0.050),
+      _NebOrb(0.30, 0.78, 0.08, const Color(0xFF6DD5FA), 0.025),
+    ];
+
+    for (final orb in orbs) {
+      final phase = orb.x + orb.y;
+      final dx = orb.x * size.width +
+          math.sin(time * math.pi * 2 * 0.6 + phase * 10) * 18;
+      final dy = orb.y * size.height +
+          math.cos(time * math.pi * 2 * 0.4 + phase * 8) * 14;
+      final r = orb.radius * size.width;
+
+      final paint = Paint()
+        ..shader = ui.Gradient.radial(
+          Offset(dx, dy),
+          r,
+          [
+            orb.color.withOpacity(orb.opacity),
+            orb.color.withOpacity(0.0),
+          ],
+        )
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * 0.4);
+
+      canvas.drawCircle(Offset(dx, dy), r, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _NebulaOrbsPainter old) => old.time != time;
+}
+
+class _NebOrb {
+  final double x, y, radius;
+  final Color color;
+  final double opacity;
+  const _NebOrb(this.x, this.y, this.radius, this.color, this.opacity);
 }
 
 class _MysticPatternPainter extends CustomPainter {

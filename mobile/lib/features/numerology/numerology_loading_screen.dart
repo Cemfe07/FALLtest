@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:lunaura/widgets/mystic_loading_indicator.dart';
 import 'package:lunaura/widgets/mystic_scaffold.dart';
 import 'package:lunaura/services/device_id_service.dart';
 import 'package:lunaura/services/numerology_api.dart';
@@ -183,34 +184,10 @@ class _NumerologyLoadingScreenState extends State<NumerologyLoadingScreen> {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      const SizedBox(
-                        height: 40,
-                        width: 40,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Color(0xFF6DD5FA),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        _hint,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.90),
-                          height: 1.35,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        "Sayıların dilini çözüyoruz…\nBirazdan kişiselleştirilmiş yorumun hazır.",
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.70),
-                          fontSize: 12,
-                          height: 1.3,
-                        ),
+                      MysticLoadingIndicator(
+                        message: _hint,
+                        submessage: "Sayıların dilini çözüyoruz…\nBirazdan kişiselleştirilmiş yorumun hazır.",
+                        size: 90,
                       ),
                     ],
                   ),

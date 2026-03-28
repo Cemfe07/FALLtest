@@ -4,6 +4,7 @@ import '../../core/app_colors.dart';
 import '../../services/coffee_api.dart';
 import '../../services/device_id_service.dart';
 import '../../widgets/glass_card.dart';
+import '../../widgets/mystic_loading_indicator.dart';
 import '../../widgets/mystic_scaffold.dart';
 
 import 'coffee_payment_screen.dart';
@@ -151,30 +152,33 @@ class _CoffeeLoadingScreenState extends State<CoffeeLoadingScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    SizedBox(
-                      width: 56,
-                      height: 56,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.5,
-                        color: _error ? null : AppColors.aiAccent,
+                    if (_error) ...[
+                      Icon(
+                        Icons.error_outline_rounded,
+                        color: AppColors.gold.withOpacity(0.8),
+                        size: 48,
                       ),
-                    ),
-                    const SizedBox(height: 14),
-                    Text(
-                      _error ? 'Yorum henüz hazır değil' : 'AI fincanınızı yorumluyor…',
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      _error
-                          ? (_errorMsg ?? 'Bilinmeyen hata')
-                          : (hardWarn
-                              ? 'Beklenenden uzun sürdü. Hazır olduğunda otomatik ödeme adımına geçeceksin.'
-                              : _hint),
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.white.withOpacity(0.75), height: 1.25),
-                    ),
+                      const SizedBox(height: 14),
+                      const Text(
+                        'Yorum henüz hazır değil',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _errorMsg ?? 'Bilinmeyen hata',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.white.withOpacity(0.75), height: 1.25),
+                      ),
+                    ] else ...[
+                      MysticLoadingIndicator(
+                        message: 'AI fincanınızı yorumluyor…',
+                        submessage: hardWarn
+                            ? 'Beklenenden uzun sürdü. Hazır olduğunda otomatik ödeme adımına geçeceksin.'
+                            : _hint,
+                        size: 100,
+                      ),
+                    ],
                     const SizedBox(height: 16),
                     if (_error) ...[
                       SizedBox(

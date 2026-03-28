@@ -1,12 +1,48 @@
 import 'package:flutter/material.dart';
 import 'app_colors.dart';
 
+class _MysticPageTransitionsBuilder extends PageTransitionsBuilder {
+  const _MysticPageTransitionsBuilder();
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    return FadeTransition(
+      opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
+      child: SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(0, 0.035),
+          end: Offset.zero,
+        ).animate(
+          CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+        ),
+        child: child,
+      ),
+    );
+  }
+}
+
 class AppTheme {
   static ThemeData dark() {
     final base = ThemeData.dark(useMaterial3: true);
 
     return base.copyWith(
       scaffoldBackgroundColor: Colors.transparent,
+
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: _MysticPageTransitionsBuilder(),
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.windows: _MysticPageTransitionsBuilder(),
+          TargetPlatform.linux: _MysticPageTransitionsBuilder(),
+          TargetPlatform.macOS: _MysticPageTransitionsBuilder(),
+        },
+      ),
 
       colorScheme: base.colorScheme.copyWith(
         primary: AppColors.gold,

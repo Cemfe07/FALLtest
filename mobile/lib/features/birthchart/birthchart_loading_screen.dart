@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../services/birthchart_api.dart';
 import '../../services/device_id_service.dart';
+import '../../widgets/mystic_loading_indicator.dart';
 import '../../widgets/mystic_scaffold.dart';
 import '../profile/profile_screen.dart';
 import 'birthchart_result_screen.dart';
@@ -205,10 +206,9 @@ class _BirthChartLoadingScreenState extends State<BirthChartLoadingScreen> {
                     ),
                     const SizedBox(height: 16),
                     const Center(
-                      child: SizedBox(
-                        height: 28,
-                        width: 28,
-                        child: CircularProgressIndicator(strokeWidth: 2),
+                      child: MysticLoadingIndicator(
+                        message: '',
+                        size: 80,
                       ),
                     ),
                   ],

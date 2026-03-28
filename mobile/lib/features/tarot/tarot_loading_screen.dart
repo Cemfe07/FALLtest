@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../services/tarot_api.dart';
+import '../../widgets/mystic_loading_indicator.dart';
 import '../../widgets/mystic_scaffold.dart';
 import 'tarot_models.dart';
 import 'tarot_select_screen.dart';
@@ -77,30 +78,10 @@ class _TarotLoadingScreenState extends State<TarotLoadingScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const SizedBox(
-              width: 52,
-              height: 52,
-              child: CircularProgressIndicator(
-                strokeWidth: 2.5,
-                color: Color(0xFF6DD5FA),
-              ),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              'AI yorumunuz hazırlanıyor...',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.white.withOpacity(0.9),
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'Kartlarınız kişiselleştiriliyor',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.white.withOpacity(0.6),
-              ),
+            const MysticLoadingIndicator(
+              message: 'AI yorumunuz hazırlanıyor…',
+              submessage: 'Kartlarınız kişiselleştiriliyor',
+              size: 110,
             ),
           ],
         ),
