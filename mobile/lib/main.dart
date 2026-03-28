@@ -9,6 +9,7 @@ import 'dart:async';
 
 import 'core/app_theme.dart';
 import 'features/home/home_screen.dart';
+import 'features/landing/landing_screen.dart';
 import 'features/legal/legal_consent_gate_screen.dart';
 import 'features/profile/profile_screen.dart';
 
@@ -168,10 +169,9 @@ class _FallAppState extends State<FallApp> with WidgetsBindingObserver {
       // ✅ Named routes
       routes: {
         '/home': (_) => const HomeScreen(),
+        '/landing': (_) => const WelcomeLandingScreen(),
         '/legal-gate': (_) => const LegalConsentGateScreen(),
         '/synastry': (_) => const SynastryIntroScreen(),
-
-        // ✅ Debug route
         '/iap-debug': (_) => const IapDebugScreen(),
       },
     );

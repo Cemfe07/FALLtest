@@ -65,18 +65,19 @@ class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: Colors.black.withOpacity(0.40),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         labelStyle: TextStyle(color: Colors.white.withOpacity(0.80)),
-        hintStyle: TextStyle(color: Colors.white.withOpacity(0.60)),
+        hintStyle: TextStyle(color: Colors.white.withOpacity(0.55)),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(20),
           borderSide: BorderSide(color: Colors.white.withOpacity(0.12)),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
-          borderSide: BorderSide(color: Colors.white.withOpacity(0.14)),
+          borderRadius: BorderRadius.circular(20),
+          borderSide: BorderSide(color: Colors.white.withOpacity(0.12)),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(20),
           borderSide: const BorderSide(color: AppColors.gold, width: 1.2),
         ),
       ),
@@ -85,9 +86,11 @@ class AppTheme {
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.gold,
           foregroundColor: Colors.black,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-          textStyle: const TextStyle(fontWeight: FontWeight.w900),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+          textStyle: const TextStyle(fontWeight: FontWeight.w900, letterSpacing: 0.3),
           overlayColor: AppColors.gold.withOpacity(0.25),
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
         ),
       ),
 
@@ -95,9 +98,10 @@ class AppTheme {
         style: OutlinedButton.styleFrom(
           foregroundColor: Colors.white,
           backgroundColor: Colors.black.withOpacity(0.22),
-          side: BorderSide(color: AppColors.gold.withOpacity(0.75), width: 1),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-          textStyle: const TextStyle(fontWeight: FontWeight.w800),
+          side: BorderSide(color: AppColors.gold.withOpacity(0.65), width: 1),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+          textStyle: const TextStyle(fontWeight: FontWeight.w800, letterSpacing: 0.3),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
         ),
       ),
 

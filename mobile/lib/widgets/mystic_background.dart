@@ -105,11 +105,18 @@ class _MysticBackgroundState extends State<MysticBackground>
                 ),
               ),
 
-            // ⭐ Twinkle yıldızlar (animasyonlu parıltı)
             Positioned.fill(
               child: IgnorePointer(
                 child: CustomPaint(
                   painter: _TwinklePainter(t),
+                ),
+              ),
+            ),
+
+            Positioned.fill(
+              child: IgnorePointer(
+                child: CustomPaint(
+                  painter: _ShootingStarsPainter(t),
                 ),
               ),
             ),
@@ -211,6 +218,53 @@ class _NebOrb {
   final Color color;
   final double opacity;
   const _NebOrb(this.x, this.y, this.radius, this.color, this.opacity);
+}
+
+class _ShootingStarsPainter extends CustomPainter {
+  final double time;
+  _ShootingStarsPainter(this.time);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rnd = math.Random(99);
+    for (int i = 0; i < 5; i++) {
+      final speed = 0.6 + rnd.nextDouble() * 0.5;
+      final phase = (time * speed + i * 0.2) % 1.0;
+      if (phase > 0.08) continue;
+
+      final progress = phase / 0.08;
+      final startX = rnd.nextDouble() * size.width * 0.7;
+      final startY = rnd.nextDouble() * size.height * 0.4;
+      final angle = 0.3 + rnd.nextDouble() * 0.4;
+      final len = 70 + rnd.nextDouble() * 100;
+
+      final cx = startX + math.cos(angle) * len * progress;
+      final cy = startY + math.sin(angle) * len * progress;
+      final tailLen = 40 * (1 - progress * 0.3);
+      final tx = cx - math.cos(angle) * tailLen;
+      final ty = cy - math.sin(angle) * tailLen;
+      final op = (0.4 * (1 - progress)).clamp(0.0, 1.0);
+
+      final paint = Paint()
+        ..shader = ui.Gradient.linear(
+          Offset(tx, ty),
+          Offset(cx, cy),
+          [Colors.transparent, Colors.white.withOpacity(op)],
+        )
+        ..strokeWidth = 1.2
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round;
+      canvas.drawLine(Offset(tx, ty), Offset(cx, cy), paint);
+
+      final glow = Paint()
+        ..color = Colors.white.withOpacity(op * 0.3)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2);
+      canvas.drawCircle(Offset(cx, cy), 1.5, glow);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _ShootingStarsPainter old) => old.time != time;
 }
 
 class _MysticPatternPainter extends CustomPainter {

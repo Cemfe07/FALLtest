@@ -7,7 +7,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../services/legal_consent_service.dart';
 import '../../widgets/mystic_scaffold.dart';
-import '../home/home_screen.dart';
+import '../landing/landing_screen.dart';
 
 /// Uygulama açılışında gösterilir. Kullanıcı Sözleşmesi'ni onaylamamışsa bu ekran açılır;
 /// onayladıktan sonra veri PostgreSQL'e kaydedilir ve ana ekrana geçilir.
@@ -50,7 +50,7 @@ Tam metni aşağıdaki butondan PDF olarak açabilirsin.
 
   void _goToHome() {
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const HomeScreen()),
+      MaterialPageRoute(builder: (_) => const WelcomeLandingScreen()),
     );
   }
 

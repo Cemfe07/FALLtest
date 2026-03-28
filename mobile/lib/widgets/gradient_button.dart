@@ -67,7 +67,7 @@ class _GradientButtonState extends State<GradientButton>
                   height: 56,
                   width: double.infinity,
                   child: ClipRRect(
-                    borderRadius: BorderRadius.circular(18),
+                    borderRadius: BorderRadius.circular(28),
                     child: Stack(
                       children: [
                         Positioned.fill(
@@ -76,14 +76,19 @@ class _GradientButtonState extends State<GradientButton>
                               gradient: const LinearGradient(
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
-                                colors: [AppColors.goldSoft, AppColors.gold],
+                                colors: [
+                                  Color(0xFFFDD164),
+                                  AppColors.gold,
+                                  Color(0xFFE8A930),
+                                ],
+                                stops: [0.0, 0.5, 1.0],
                               ),
                               boxShadow: [
                                 BoxShadow(
                                   color: AppColors.gold
-                                      .withOpacity(_pressed ? 0.45 : 0.30),
-                                  blurRadius: _pressed ? 24 : 18,
-                                  offset: const Offset(0, 8),
+                                      .withOpacity(_pressed ? 0.50 : 0.30),
+                                  blurRadius: _pressed ? 28 : 20,
+                                  offset: const Offset(0, 6),
                                 ),
                               ],
                             ),
